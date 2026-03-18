@@ -2,9 +2,11 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 )
 
 type Network struct {
@@ -63,6 +65,17 @@ type updateNetworkResponse struct {
 	Network networkPayload `json:"Network"`
 }
 
+type listNetworksResponse struct {
+	ListNetworksResult struct {
+		Error       string          `json:"error"`
+		NetworkList json.RawMessage `json:"NetworkList"`
+	} `json:"listNetworksResult"`
+}
+
+type listNetworksEnvelope struct {
+	Network json.RawMessage `json:"Network"`
+}
+
 type networkPayload struct {
 	ID          string `json:"id"`
 	IP          string `json:"IP"`
@@ -88,6 +101,21 @@ func (c *Client) ReadNetwork(ctx context.Context, clientName, ip string, bitmask
 	}
 
 	return response.Network.toNetwork(clientName)
+}
+
+func (c *Client) ListNetworks(ctx context.Context, clientName string) ([]Network, error) {
+	values := url.Values{}
+	values.Set("request_type", "listNetworks")
+	values.Set("client_name", clientName)
+	values.Set("include_id", "yes")
+	values.Set("no_csv", "yes")
+
+	var response listNetworksResponse
+	if err := c.doFormRequest(ctx, values, &response); err != nil {
+		return nil, err
+	}
+
+	return decodeNetworkList(response.ListNetworksResult.NetworkList, clientName)
 }
 
 func (c *Client) CreateNetwork(ctx context.Context, input CreateNetworkInput) (*Network, error) {
@@ -170,4 +198,43 @@ func boolToYN(value bool) string {
 
 func ynToBool(value string) bool {
 	return value == "y" || value == "Y"
+}
+
+func decodeNetworkList(raw json.RawMessage, clientName string) ([]Network, error) {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == `""` || trimmed == "null" {
+		return nil, nil
+	}
+
+	var envelope listNetworksEnvelope
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return nil, fmt.Errorf("decode network list envelope: %w", err)
+	}
+
+	trimmedNetworks := strings.TrimSpace(string(envelope.Network))
+	if trimmedNetworks == "" || trimmedNetworks == `""` || trimmedNetworks == "null" {
+		return nil, nil
+	}
+
+	var payloads []networkPayload
+	if err := json.Unmarshal(envelope.Network, &payloads); err != nil {
+		var single networkPayload
+		if singleErr := json.Unmarshal(envelope.Network, &single); singleErr != nil {
+			return nil, fmt.Errorf("decode network list: %w", err)
+		}
+
+		payloads = []networkPayload{single}
+	}
+
+	networks := make([]Network, 0, len(payloads))
+	for _, payload := range payloads {
+		network, err := payload.toNetwork(clientName)
+		if err != nil {
+			return nil, err
+		}
+
+		networks = append(networks, *network)
+	}
+
+	return networks, nil
 }

@@ -78,6 +78,40 @@ func TestNetworkResourceResolveClientNameOverride(t *testing.T) {
 	}
 }
 
+func TestNetworkDataSourceResolveClientName(t *testing.T) {
+	t.Parallel()
+
+	dataSource := &networkDataSource{
+		client: mustClient(t, "DEFAULT"),
+	}
+
+	clientName, ok := dataSource.resolveClientName(types.StringNull())
+	if !ok {
+		t.Fatal("expected provider client_name fallback to be used")
+	}
+
+	if clientName != "DEFAULT" {
+		t.Fatalf("expected DEFAULT, got %q", clientName)
+	}
+}
+
+func TestNetworkDataSourceResolveClientNameOverride(t *testing.T) {
+	t.Parallel()
+
+	dataSource := &networkDataSource{
+		client: mustClient(t, "DEFAULT"),
+	}
+
+	clientName, ok := dataSource.resolveClientName(types.StringValue("OTHER"))
+	if !ok {
+		t.Fatal("expected data source-level client_name to be used")
+	}
+
+	if clientName != "OTHER" {
+		t.Fatalf("expected OTHER, got %q", clientName)
+	}
+}
+
 func mustClient(t *testing.T, clientName string) *client.Client {
 	t.Helper()
 

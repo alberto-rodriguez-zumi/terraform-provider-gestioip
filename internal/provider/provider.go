@@ -132,5 +132,7 @@ func (p *gestioIPProvider) Resources(_ context.Context) []func() resource.Resour
 }
 
 func (p *gestioIPProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return nil
+	return []func() datasource.DataSource{
+		NewNetworkDataSource,
+	}
 }

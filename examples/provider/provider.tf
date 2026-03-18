@@ -22,3 +22,8 @@ resource "gestioip_network" "example" {
   comment     = "Created by Terraform"
   sync        = false
 }
+
+data "gestioip_network" "example" {
+  ip      = gestioip_network.example.ip
+  bitmask = gestioip_network.example.bitmask
+}

@@ -30,6 +30,20 @@ Puntos importantes confirmados en esa guía:
 
 Si en algún punto el comportamiento observado en una instancia real difiere del PDF, documentarlo en el código o en el README y priorizar el comportamiento real verificado.
 
+Observación importante ya verificada contra una instancia local limpia de la imagen `gestioip/gestioip:3570` el 18 de marzo de 2026:
+
+- la ruta documentada `/gestioip/api/api.cgi` no estaba expuesta en esa imagen
+- la ruta operativa observada fue `/gestioip/intapi.cgi`
+- `intapi.cgi` requirió sesión por cookie y no funcionó con Basic Auth puro
+- la superficie observada en `intapi.cgi` fue más reducida; para redes se confirmó `listNetworks`
+
+Esto significa que el provider debe tolerar al menos dos variantes de despliegue:
+
+- la API documentada del PDF
+- la API interna expuesta por la imagen de contenedor probada
+
+Cuando se implemente o ajuste una entidad, priorizar siempre la comprobación contra una instancia real además del PDF.
+
 ## Principios de diseño
 
 - Usar Terraform Plugin Framework, no Plugin SDK v2.
@@ -62,6 +76,8 @@ Orden recomendado de implementación:
 - Tratar respuestas con campo `error` como fallo funcional aunque el HTTP status sea `200`.
 - Añadir logs con `tflog` solo para contexto útil y sin exponer contraseñas ni datos sensibles.
 - Normalizar `base_url` para evitar dobles barras y construir internamente la ruta final a `api.cgi`.
+- Permitir detección o fallback de endpoint cuando el despliegue use `intapi.cgi` en lugar de `api/api.cgi`.
+- Si el endpoint real requiere cookie de sesión, encapsular ese flujo dentro del cliente y no en recursos o data sources.
 
 ## Diseño del provider
 
@@ -86,6 +102,7 @@ Antes de implementar muchos recursos, conviene fijar esta decisión y aplicarla 
 - Los data sources deben cubrir primero búsquedas directas y deterministas.
 - Evitar data sources basados en resultados ambiguos, por ejemplo búsquedas por hostname no único, salvo que el schema haga explícita esa limitación.
 - Los recursos deben mapear con precisión los campos soportados por la API y no inventar atributos.
+- Si una operación existe en el PDF pero no está disponible en la variante real que estamos probando, documentarlo y no asumir soporte inmediato.
 - Los campos calculados deben usarse solo cuando realmente provengan del servidor o sean necesarios para estabilidad del estado.
 - Los campos sensibles deben marcarse como `Sensitive`.
 - Si la API usa nombres poco idiomáticos como `new_BM`, eso debe quedar encapsulado en el cliente o en la capa de mapeo, no en el schema público de Terraform.
@@ -159,6 +176,7 @@ Cuando la base esté madura:
 - los acceptance tests deben quedar detrás de variables de entorno y no ejecutarse por defecto
 
 No asumir que una respuesta HTTP 200 implica éxito de negocio; esto debe tener cobertura de tests.
+No asumir tampoco que todas las instalaciones de GestioIP exponen exactamente el mismo endpoint o el mismo conjunto de `request_type`.
 
 ## Estilo de implementación
 
@@ -192,3 +210,4 @@ Estas decisiones deben revisarse temprano antes de ampliar mucho la superficie d
 - cómo exponer `customColumns`
 - si conviene añadir `docs/` generada más adelante
 - qué endpoints especiales merecen data source y cuáles no deben entrar en la primera versión
+- cómo separar de forma limpia las capacidades comunes frente a las específicas de `intapi.cgi`
