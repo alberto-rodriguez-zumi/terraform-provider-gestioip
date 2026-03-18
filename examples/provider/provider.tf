@@ -23,7 +23,22 @@ resource "gestioip_network" "example" {
   sync        = false
 }
 
+resource "gestioip_host" "example" {
+  depends_on = [gestioip_network.example]
+
+  ip          = "192.168.50.10"
+  hostname    = "terraform-host"
+  description = "Terraform managed host"
+  site        = "Lon"
+  category    = "server"
+  comment     = "Created by Terraform"
+}
+
 data "gestioip_network" "example" {
   ip      = gestioip_network.example.ip
   bitmask = gestioip_network.example.bitmask
+}
+
+data "gestioip_host" "example" {
+  ip = gestioip_host.example.ip
 }

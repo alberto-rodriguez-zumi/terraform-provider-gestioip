@@ -127,12 +127,14 @@ func (p *gestioIPProvider) Configure(ctx context.Context, req provider.Configure
 
 func (p *gestioIPProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
+		NewHostResource,
 		NewNetworkResource,
 	}
 }
 
 func (p *gestioIPProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
+		NewHostDataSource,
 		NewNetworkDataSource,
 	}
 }

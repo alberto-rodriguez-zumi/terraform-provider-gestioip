@@ -41,8 +41,13 @@ Observación importante ya verificada contra una instancia local limpia de la im
   - lectura vía `intapi.cgi` usando `listNetworks`
   - escritura vía CGI de frontend con sesión
   - resolución previa de `client_name` a `client_id`
+- para la entidad `host`, en la imagen probada no se confirmó una API de lectura útil en `intapi.cgi`
+  - la lectura funcional se validó parseando `ip_show.cgi`
+  - la escritura se validó con `res/ip_modip.cgi`
+  - el borrado se validó con `res/ip_deleteip.cgi`
 - en la imagen probada, `listNetworks` en JSON respondió de forma más fiable con `client_id` que con el nombre literal del cliente
 - para crear o modificar redes, `site` y `category` deben corresponder a valores existentes en GestioIP; no asumir que cualquier cadena libre será aceptada o persistida
+- para hosts, `site` y `category` también deben corresponder a valores existentes en GestioIP
 
 Esto significa que el provider debe tolerar al menos dos variantes de despliegue:
 
@@ -187,6 +192,7 @@ Cuando la base esté madura:
 Estado actual ya útil:
 
 - existe un test de integración opcional para el ciclo create/read/update/delete de `network`
+- existe un test de integración opcional para el ciclo create/read/update/delete de `host`
 - ese test debe ejecutarse con variables como `GESTIOIP_BASE_URL`, `GESTIOIP_USERNAME`, `GESTIOIP_PASSWORD` y `GESTIOIP_CLIENT_NAME`
 
 No asumir que una respuesta HTTP 200 implica éxito de negocio; esto debe tener cobertura de tests.

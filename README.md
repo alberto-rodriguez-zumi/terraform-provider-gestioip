@@ -24,7 +24,14 @@ For the free container image tested on March 18, 2026, the provider uses a hybri
   - `res/ip_modred.cgi`
   - `res/ip_deletered.cgi`
 
+For hosts in the same free container image, the provider currently uses the frontend CGI flow end to end:
+
+- reads parse `ip_show.cgi`
+- create and update use `res/ip_modip.cgi`
+- delete uses `res/ip_deleteip.cgi`
+
 This means `gestioip_network` is currently implemented against the real behavior of the free edition, not only against the paid API guide.
+The same is now true for `gestioip_host`.
 
 Two practical notes from the validated container setup:
 
