@@ -23,9 +23,10 @@ func New() provider.Provider {
 type gestioIPProvider struct{}
 
 type gestioIPProviderModel struct {
-	BaseURL  types.String `tfsdk:"base_url"`
-	Username types.String `tfsdk:"username"`
-	Password types.String `tfsdk:"password"`
+	BaseURL    types.String `tfsdk:"base_url"`
+	ClientName types.String `tfsdk:"client_name"`
+	Username   types.String `tfsdk:"username"`
+	Password   types.String `tfsdk:"password"`
 }
 
 type providerData struct {
@@ -43,6 +44,10 @@ func (p *gestioIPProvider) Schema(_ context.Context, _ provider.SchemaRequest, r
 			"base_url": schema.StringAttribute{
 				MarkdownDescription: "Base URL for the GestioIP API.",
 				Required:            true,
+			},
+			"client_name": schema.StringAttribute{
+				MarkdownDescription: "Default GestioIP client name used by resources and data sources that operate within a client context.",
+				Optional:            true,
 			},
 			"username": schema.StringAttribute{
 				MarkdownDescription: "Username used to authenticate against GestioIP.",
@@ -94,9 +99,10 @@ func (p *gestioIPProvider) Configure(ctx context.Context, req provider.Configure
 	}
 
 	client, err := client.New(client.Config{
-		BaseURL:  data.BaseURL.ValueString(),
-		Username: data.Username.ValueString(),
-		Password: data.Password.ValueString(),
+		BaseURL:    data.BaseURL.ValueString(),
+		ClientName: data.ClientName.ValueString(),
+		Username:   data.Username.ValueString(),
+		Password:   data.Password.ValueString(),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -107,7 +113,8 @@ func (p *gestioIPProvider) Configure(ctx context.Context, req provider.Configure
 	}
 
 	tflog.Info(ctx, "Configured GestioIP client", map[string]any{
-		"base_url": client.BaseURL(),
+		"base_url":    client.BaseURL(),
+		"client_name": client.ClientName(),
 	})
 
 	providerData := &providerData{

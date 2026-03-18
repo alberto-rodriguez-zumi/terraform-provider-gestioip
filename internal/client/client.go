@@ -10,6 +10,7 @@ import (
 
 type Config struct {
 	BaseURL    string
+	ClientName string
 	Username   string
 	Password   string
 	HTTPClient *http.Client
@@ -17,6 +18,7 @@ type Config struct {
 
 type Client struct {
 	baseURL    string
+	clientName string
 	username   string
 	password   string
 	httpClient *http.Client
@@ -37,6 +39,7 @@ func New(config Config) (*Client, error) {
 
 	return &Client{
 		baseURL:    baseURL,
+		clientName: config.ClientName,
 		username:   config.Username,
 		password:   config.Password,
 		httpClient: httpClient,
@@ -45,6 +48,10 @@ func New(config Config) (*Client, error) {
 
 func (c *Client) BaseURL() string {
 	return c.baseURL
+}
+
+func (c *Client) ClientName() string {
+	return c.clientName
 }
 
 func (c *Client) Ping(ctx context.Context) error {
