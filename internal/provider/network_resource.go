@@ -138,6 +138,19 @@ func (r *networkResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
+	supportsCRUD, err := r.client.SupportsNetworkCRUD(ctx, clientName)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to Determine GestioIP Network API Capabilities", err.Error())
+		return
+	}
+	if !supportsCRUD {
+		resp.Diagnostics.AddError(
+			"Network Resource Not Supported By This GestioIP API Variant",
+			"The configured GestioIP endpoint resolved to intapi.cgi, which in the tested container image supports network reads via listNetworks but does not expose create/update/delete network operations through the API.",
+		)
+		return
+	}
+
 	network, err := r.client.CreateNetwork(ctx, client.CreateNetworkInput{
 		ClientName:  clientName,
 		IP:          plan.IP.ValueString(),
@@ -203,6 +216,19 @@ func (r *networkResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
+	supportsCRUD, err := r.client.SupportsNetworkCRUD(ctx, clientName)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to Determine GestioIP Network API Capabilities", err.Error())
+		return
+	}
+	if !supportsCRUD {
+		resp.Diagnostics.AddError(
+			"Network Resource Not Supported By This GestioIP API Variant",
+			"The configured GestioIP endpoint resolved to intapi.cgi, which in the tested container image supports network reads via listNetworks but does not expose create/update/delete network operations through the API.",
+		)
+		return
+	}
+
 	network, err := r.client.UpdateNetwork(ctx, client.UpdateNetworkInput{
 		ClientName:  clientName,
 		IP:          plan.IP.ValueString(),
@@ -235,7 +261,20 @@ func (r *networkResource) Delete(ctx context.Context, req resource.DeleteRequest
 		return
 	}
 
-	err := r.client.DeleteNetwork(ctx, client.DeleteNetworkInput{
+	supportsCRUD, err := r.client.SupportsNetworkCRUD(ctx, state.ClientName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to Determine GestioIP Network API Capabilities", err.Error())
+		return
+	}
+	if !supportsCRUD {
+		resp.Diagnostics.AddError(
+			"Network Resource Not Supported By This GestioIP API Variant",
+			"The configured GestioIP endpoint resolved to intapi.cgi, which in the tested container image supports network reads via listNetworks but does not expose create/update/delete network operations through the API.",
+		)
+		return
+	}
+
+	err = r.client.DeleteNetwork(ctx, client.DeleteNetworkInput{
 		ClientName: state.ClientName.ValueString(),
 		IP:         state.IP.ValueString(),
 		Bitmask:    state.Bitmask.ValueInt64(),

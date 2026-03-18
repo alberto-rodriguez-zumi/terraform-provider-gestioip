@@ -36,6 +36,7 @@ Observación importante ya verificada contra una instancia local limpia de la im
 - la ruta operativa observada fue `/gestioip/intapi.cgi`
 - `intapi.cgi` requirió sesión por cookie y no funcionó con Basic Auth puro
 - la superficie observada en `intapi.cgi` fue más reducida; para redes se confirmó `listNetworks`
+- la imagen sí incluye CGI de frontend para escritura de redes como `res/ip_insertred.cgi`, `res/ip_modred.cgi` y `res/ip_deletered.cgi`, pero siguen un flujo de formularios web y no un contrato API estable equivalente a `intapi.cgi`
 
 Esto significa que el provider debe tolerar al menos dos variantes de despliegue:
 
@@ -43,6 +44,7 @@ Esto significa que el provider debe tolerar al menos dos variantes de despliegue
 - la API interna expuesta por la imagen de contenedor probada
 
 Cuando se implemente o ajuste una entidad, priorizar siempre la comprobación contra una instancia real además del PDF.
+Si en algún caso se decide soportar escritura vía CGI de frontend, tratarlo como una integración distinta y documentar muy bien sus límites y supuestos.
 
 ## Principios de diseño
 

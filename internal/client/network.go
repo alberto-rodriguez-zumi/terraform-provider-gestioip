@@ -89,6 +89,23 @@ type networkPayload struct {
 }
 
 func (c *Client) ReadNetwork(ctx context.Context, clientName, ip string, bitmask int64) (*Network, error) {
+	if supports, err := c.SupportsNetworkCRUD(ctx, clientName); err == nil && !supports {
+		networks, err := c.ListNetworks(ctx, clientName)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, network := range networks {
+			if network.IP == ip && network.Bitmask == bitmask {
+				return &network, nil
+			}
+		}
+
+		return nil, &APIError{
+			Message: fmt.Sprintf("network %s/%d not found", ip, bitmask),
+		}
+	}
+
 	values := url.Values{}
 	values.Set("request_type", "readNetwork")
 	values.Set("client_name", clientName)
@@ -116,6 +133,17 @@ func (c *Client) ListNetworks(ctx context.Context, clientName string) ([]Network
 	}
 
 	return decodeNetworkList(response.ListNetworksResult.NetworkList, clientName)
+}
+
+func (c *Client) SupportsNetworkCRUD(ctx context.Context, clientName string) (bool, error) {
+	if c.apiURL == "" {
+		_, err := c.ListNetworks(ctx, clientName)
+		if err != nil {
+			return false, err
+		}
+	}
+
+	return !isInternalAPIEndpoint(c.apiURL), nil
 }
 
 func (c *Client) CreateNetwork(ctx context.Context, input CreateNetworkInput) (*Network, error) {

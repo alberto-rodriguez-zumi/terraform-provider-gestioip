@@ -112,6 +112,24 @@ func TestNetworkDataSourceResolveClientNameOverride(t *testing.T) {
 	}
 }
 
+func TestFindNetwork(t *testing.T) {
+	t.Parallel()
+
+	networks := []client.Network{
+		{IP: "192.168.1.0", Bitmask: 24},
+		{IP: "10.0.0.0", Bitmask: 8},
+	}
+
+	network, found := findNetwork(networks, "10.0.0.0", 8)
+	if !found {
+		t.Fatal("expected network to be found")
+	}
+
+	if network.IP != "10.0.0.0" || network.Bitmask != 8 {
+		t.Fatalf("unexpected network returned: %+v", network)
+	}
+}
+
 func mustClient(t *testing.T, clientName string) *client.Client {
 	t.Helper()
 
