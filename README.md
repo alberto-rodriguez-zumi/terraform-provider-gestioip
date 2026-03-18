@@ -33,6 +33,13 @@ For hosts in the same free container image, the provider currently uses the fron
 This means `gestioip_network` is currently implemented against the real behavior of the free edition, not only against the paid API guide.
 The same is now true for `gestioip_host`.
 
+For VLANs in the same free container image, the provider also uses the frontend CGI flow end to end:
+
+- reads parse `show_vlans.cgi`
+- create uses `res/ip_insertvlan.cgi`
+- update uses `res/ip_modvlan.cgi`
+- delete uses `res/ip_deletevlan.cgi`
+
 Two practical notes from the validated container setup:
 
 - `client_name` must be resolvable to a GestioIP client visible in the UI

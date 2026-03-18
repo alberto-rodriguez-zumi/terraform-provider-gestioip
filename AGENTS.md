@@ -45,6 +45,11 @@ Observación importante ya verificada contra una instancia local limpia de la im
   - la lectura funcional se validó parseando `ip_show.cgi`
   - la escritura se validó con `res/ip_modip.cgi`
   - el borrado se validó con `res/ip_deleteip.cgi`
+- para la entidad `vlan`, en la imagen probada tampoco se confirmó una API de lectura útil en `intapi.cgi`
+  - la lectura funcional se validó parseando `show_vlans.cgi`
+  - la creación se validó con `res/ip_insertvlan.cgi`
+  - la modificación se validó con `res/ip_modvlan.cgi`
+  - el borrado se validó con `res/ip_deletevlan.cgi`
 - en la imagen probada, `listNetworks` en JSON respondió de forma más fiable con `client_id` que con el nombre literal del cliente
 - para crear o modificar redes, `site` y `category` deben corresponder a valores existentes en GestioIP; no asumir que cualquier cadena libre será aceptada o persistida
 - para hosts, `site` y `category` también deben corresponder a valores existentes en GestioIP
@@ -193,6 +198,7 @@ Estado actual ya útil:
 
 - existe un test de integración opcional para el ciclo create/read/update/delete de `network`
 - existe un test de integración opcional para el ciclo create/read/update/delete de `host`
+- existe un test de integración opcional para el ciclo create/read/update/delete de `vlan`
 - ese test debe ejecutarse con variables como `GESTIOIP_BASE_URL`, `GESTIOIP_USERNAME`, `GESTIOIP_PASSWORD` y `GESTIOIP_CLIENT_NAME`
 
 No asumir que una respuesta HTTP 200 implica éxito de negocio; esto debe tener cobertura de tests.

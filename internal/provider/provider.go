@@ -129,6 +129,7 @@ func (p *gestioIPProvider) Resources(_ context.Context) []func() resource.Resour
 	return []func() resource.Resource{
 		NewHostResource,
 		NewNetworkResource,
+		NewVLANResource,
 	}
 }
 
@@ -136,5 +137,6 @@ func (p *gestioIPProvider) DataSources(_ context.Context) []func() datasource.Da
 	return []func() datasource.DataSource{
 		NewHostDataSource,
 		NewNetworkDataSource,
+		NewVLANDataSource,
 	}
 }

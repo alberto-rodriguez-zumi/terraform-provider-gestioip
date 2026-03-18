@@ -42,3 +42,15 @@ data "gestioip_network" "example" {
 data "gestioip_host" "example" {
   ip = gestioip_host.example.ip
 }
+
+resource "gestioip_vlan" "example" {
+  number      = "200"
+  name        = "terraform-vlan"
+  description = "Terraform managed VLAN"
+  bg_color    = "blue"
+  font_color  = "white"
+}
+
+data "gestioip_vlan" "example" {
+  number = gestioip_vlan.example.number
+}
