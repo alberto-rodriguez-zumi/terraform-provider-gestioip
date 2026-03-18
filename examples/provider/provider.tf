@@ -17,7 +17,7 @@ resource "gestioip_network" "example" {
   ip          = "192.168.50.0"
   bitmask     = 24
   description = "Terraform managed network"
-  site        = "MAD"
+  site        = "Lon"
   category    = "prod"
   comment     = "Created by Terraform"
   sync        = false

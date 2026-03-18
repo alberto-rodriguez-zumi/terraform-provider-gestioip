@@ -22,9 +22,11 @@ type Config struct {
 
 type Client struct {
 	baseURL              string
+	rootURL              string
 	apiURL               string
 	apiCandidates        []string
 	clientName           string
+	clientIDs            map[string]string
 	username             string
 	password             string
 	httpClient           *http.Client
@@ -66,9 +68,11 @@ func New(config Config) (*Client, error) {
 
 	return &Client{
 		baseURL:       baseURL,
+		rootURL:       deriveRootURL(baseURL),
 		apiURL:        "",
 		apiCandidates: apiCandidates,
 		clientName:    config.ClientName,
+		clientIDs:     map[string]string{},
 		username:      config.Username,
 		password:      config.Password,
 		httpClient:    httpClient,
@@ -89,6 +93,10 @@ func (c *Client) APIURL() string {
 	}
 
 	return c.apiURL
+}
+
+func (c *Client) RootURL() string {
+	return c.rootURL
 }
 
 func (c *Client) ClientName() string {
@@ -112,6 +120,17 @@ func (c *Client) Ping(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (c *Client) UsesOfficialNetworkAPI(ctx context.Context, clientName string) (bool, error) {
+	if c.apiURL == "" {
+		_, err := c.ListNetworks(ctx, clientName)
+		if err != nil {
+			return false, err
+		}
+	}
+
+	return !isInternalAPIEndpoint(c.apiURL), nil
 }
 
 func (c *Client) doFormRequest(ctx context.Context, values url.Values, target any) error {
@@ -267,6 +286,19 @@ func buildAPIURLs(baseURL string) []string {
 			baseURL + "/gestioip/api/api.cgi",
 			baseURL + "/gestioip/intapi.cgi",
 		}
+	}
+}
+
+func deriveRootURL(baseURL string) string {
+	switch {
+	case strings.HasSuffix(baseURL, "/gestioip/api/api.cgi"):
+		return strings.TrimSuffix(baseURL, "/gestioip/api/api.cgi")
+	case strings.HasSuffix(baseURL, "/gestioip/intapi.cgi"):
+		return strings.TrimSuffix(baseURL, "/gestioip/intapi.cgi")
+	case strings.HasSuffix(baseURL, "/api.cgi"):
+		return strings.TrimSuffix(baseURL, "/api.cgi")
+	default:
+		return baseURL
 	}
 }
 

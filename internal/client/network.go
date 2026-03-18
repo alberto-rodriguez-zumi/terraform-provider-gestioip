@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -34,6 +35,7 @@ type CreateNetworkInput struct {
 }
 
 type UpdateNetworkInput struct {
+	ID          string
 	ClientName  string
 	IP          string
 	Bitmask     int64
@@ -42,12 +44,15 @@ type UpdateNetworkInput struct {
 	Category    string
 	Comment     string
 	Sync        bool
+	IPVersion   string
 }
 
 type DeleteNetworkInput struct {
+	ID         string
 	ClientName string
 	IP         string
 	Bitmask    int64
+	IPVersion  string
 }
 
 type readNetworkResponse struct {
@@ -121,9 +126,17 @@ func (c *Client) ReadNetwork(ctx context.Context, clientName, ip string, bitmask
 }
 
 func (c *Client) ListNetworks(ctx context.Context, clientName string) ([]Network, error) {
+	requestClient := clientName
+	if isInternalAPIEndpoint(c.APIURL()) || c.apiURL == "" {
+		clientID, err := c.ResolveClientID(ctx, clientName)
+		if err == nil {
+			requestClient = clientID
+		}
+	}
+
 	values := url.Values{}
 	values.Set("request_type", "listNetworks")
-	values.Set("client_name", clientName)
+	values.Set("client_name", requestClient)
 	values.Set("include_id", "yes")
 	values.Set("no_csv", "yes")
 
@@ -132,21 +145,40 @@ func (c *Client) ListNetworks(ctx context.Context, clientName string) ([]Network
 		return nil, err
 	}
 
-	return decodeNetworkList(response.ListNetworksResult.NetworkList, clientName)
-}
+	networks, err := decodeNetworkList(response.ListNetworksResult.NetworkList, clientName)
+	if err != nil {
+		return nil, err
+	}
 
-func (c *Client) SupportsNetworkCRUD(ctx context.Context, clientName string) (bool, error) {
-	if c.apiURL == "" {
-		_, err := c.ListNetworks(ctx, clientName)
-		if err != nil {
-			return false, err
+	if len(networks) == 0 && requestClient == clientName && !isNumeric(clientName) {
+		clientID, err := c.ResolveClientID(ctx, clientName)
+		if err == nil && clientID != clientName {
+			values.Set("client_name", clientID)
+			if err := c.doFormRequest(ctx, values, &response); err != nil {
+				return nil, err
+			}
+
+			return decodeNetworkList(response.ListNetworksResult.NetworkList, clientName)
 		}
 	}
 
-	return !isInternalAPIEndpoint(c.apiURL), nil
+	return networks, nil
+}
+
+func (c *Client) SupportsNetworkCRUD(ctx context.Context, clientName string) (bool, error) {
+	return c.UsesOfficialNetworkAPI(ctx, clientName)
 }
 
 func (c *Client) CreateNetwork(ctx context.Context, input CreateNetworkInput) (*Network, error) {
+	usesOfficialAPI, err := c.UsesOfficialNetworkAPI(ctx, input.ClientName)
+	if err != nil {
+		return nil, err
+	}
+
+	if !usesOfficialAPI {
+		return c.createNetworkViaFrontend(ctx, input)
+	}
+
 	values := url.Values{}
 	values.Set("request_type", "createNetwork")
 	values.Set("client_name", input.ClientName)
@@ -167,6 +199,15 @@ func (c *Client) CreateNetwork(ctx context.Context, input CreateNetworkInput) (*
 }
 
 func (c *Client) UpdateNetwork(ctx context.Context, input UpdateNetworkInput) (*Network, error) {
+	usesOfficialAPI, err := c.UsesOfficialNetworkAPI(ctx, input.ClientName)
+	if err != nil {
+		return nil, err
+	}
+
+	if !usesOfficialAPI {
+		return c.updateNetworkViaFrontend(ctx, input)
+	}
+
 	values := url.Values{}
 	values.Set("request_type", "updateNetwork")
 	values.Set("client_name", input.ClientName)
@@ -187,6 +228,15 @@ func (c *Client) UpdateNetwork(ctx context.Context, input UpdateNetworkInput) (*
 }
 
 func (c *Client) DeleteNetwork(ctx context.Context, input DeleteNetworkInput) error {
+	usesOfficialAPI, err := c.UsesOfficialNetworkAPI(ctx, input.ClientName)
+	if err != nil {
+		return err
+	}
+
+	if !usesOfficialAPI {
+		return c.deleteNetworkViaFrontend(ctx, input)
+	}
+
 	values := url.Values{}
 	values.Set("request_type", "deleteNetwork")
 	values.Set("client_name", input.ClientName)
@@ -194,6 +244,102 @@ func (c *Client) DeleteNetwork(ctx context.Context, input DeleteNetworkInput) er
 	values.Set("BM", strconv.FormatInt(input.Bitmask, 10))
 
 	return c.doFormRequest(ctx, values, nil)
+}
+
+func (c *Client) createNetworkViaFrontend(ctx context.Context, input CreateNetworkInput) (*Network, error) {
+	clientID, err := c.ResolveClientID(ctx, input.ClientName)
+	if err != nil {
+		return nil, err
+	}
+
+	values := url.Values{}
+	values.Set("client_id", clientID)
+	values.Set("ip_version", inferIPVersion(input.IP))
+	values.Set("red", input.IP)
+	values.Set("BM", strconv.FormatInt(input.Bitmask, 10))
+	values.Set("descr", input.Description)
+	values.Set("loc", input.Site)
+	values.Set("cat_red", input.Category)
+	values.Set("comentario", input.Comment)
+	values.Set("vigilada", boolToYN(input.Sync))
+
+	body, err := c.postFrontendForm(ctx, "/gestioip/res/ip_insertred.cgi", values)
+	if err != nil {
+		return nil, err
+	}
+
+	if frontendErr := extractFrontendError(body); frontendErr != "" {
+		return nil, &APIError{Message: frontendErr}
+	}
+
+	return c.ReadNetwork(ctx, input.ClientName, input.IP, input.Bitmask)
+}
+
+func (c *Client) updateNetworkViaFrontend(ctx context.Context, input UpdateNetworkInput) (*Network, error) {
+	clientID, err := c.ResolveClientID(ctx, input.ClientName)
+	if err != nil {
+		return nil, err
+	}
+
+	values := url.Values{}
+	values.Set("client_id", clientID)
+	values.Set("red_num", input.ID)
+	values.Set("red", input.IP)
+	values.Set("BM", strconv.FormatInt(input.Bitmask, 10))
+	values.Set("BM_new", strconv.FormatInt(input.Bitmask, 10))
+	values.Set("descr", input.Description)
+	values.Set("loc", input.Site)
+	values.Set("cat_net", input.Category)
+	values.Set("comentario", input.Comment)
+	values.Set("vigilada", boolToYN(input.Sync))
+	values.Set("referer", "red_view")
+	values.Set("ip_version_ele", firstNonEmpty(input.IPVersion, inferIPVersion(input.IP)))
+	values.Set("dyn_dns_updates", "1")
+
+	body, err := c.postFrontendForm(ctx, "/gestioip/res/ip_modred.cgi", values)
+	if err != nil {
+		return nil, err
+	}
+
+	if frontendErr := extractFrontendError(body); frontendErr != "" {
+		return nil, &APIError{Message: frontendErr}
+	}
+
+	return c.ReadNetwork(ctx, input.ClientName, input.IP, input.Bitmask)
+}
+
+func (c *Client) deleteNetworkViaFrontend(ctx context.Context, input DeleteNetworkInput) error {
+	clientID, err := c.ResolveClientID(ctx, input.ClientName)
+	if err != nil {
+		return err
+	}
+
+	values := url.Values{}
+	values.Set("client_id", clientID)
+	values.Set("red_num", input.ID)
+	values.Set("referer", "red_view")
+	values.Set("ip_version_ele", firstNonEmpty(input.IPVersion, inferIPVersion(input.IP)))
+
+	body, err := c.postFrontendForm(ctx, "/gestioip/res/ip_deletered.cgi", values)
+	if err != nil {
+		return err
+	}
+
+	if frontendErr := extractFrontendError(body); frontendErr != "" {
+		return &APIError{Message: frontendErr}
+	}
+
+	_, err = c.ReadNetwork(ctx, input.ClientName, input.IP, input.Bitmask)
+	if err == nil {
+		return &APIError{Message: fmt.Sprintf("network %s/%d still exists after delete", input.IP, input.Bitmask)}
+	}
+
+	var apiErr *APIError
+	if errors.As(err, &apiErr) && strings.Contains(apiErr.Message, "not found") {
+		return nil
+	}
+
+	return err
 }
 
 func (p networkPayload) toNetwork(clientName string) (*Network, error) {
@@ -226,6 +372,24 @@ func boolToYN(value bool) string {
 
 func ynToBool(value string) bool {
 	return value == "y" || value == "Y"
+}
+
+func inferIPVersion(ip string) string {
+	if strings.Contains(ip, ":") {
+		return "v6"
+	}
+
+	return "v4"
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+
+	return ""
 }
 
 func decodeNetworkList(raw json.RawMessage, clientName string) ([]Network, error) {

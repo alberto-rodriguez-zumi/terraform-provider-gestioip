@@ -2,12 +2,15 @@ package provider
 
 import (
 	"context"
+	"errors"
+	"strings"
 
 	"github.com/alberto-rodriguez-zumi/terraform-provider-gestioip/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -63,25 +66,28 @@ func (r *networkResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"ip": schema.StringAttribute{
 				MarkdownDescription: "Network IP address.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"bitmask": schema.Int64Attribute{
 				MarkdownDescription: "Network bitmask.",
 				Required:            true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.RequiresReplace(),
+				},
 			},
 			"description": schema.StringAttribute{
 				MarkdownDescription: "Network description.",
-				Optional:            true,
-				Computed:            true,
+				Required:            true,
 			},
 			"site": schema.StringAttribute{
 				MarkdownDescription: "Network site.",
-				Optional:            true,
-				Computed:            true,
+				Required:            true,
 			},
 			"category": schema.StringAttribute{
 				MarkdownDescription: "Network category.",
-				Optional:            true,
-				Computed:            true,
+				Required:            true,
 			},
 			"comment": schema.StringAttribute{
 				MarkdownDescription: "Network comment.",
@@ -138,19 +144,6 @@ func (r *networkResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	supportsCRUD, err := r.client.SupportsNetworkCRUD(ctx, clientName)
-	if err != nil {
-		resp.Diagnostics.AddError("Unable to Determine GestioIP Network API Capabilities", err.Error())
-		return
-	}
-	if !supportsCRUD {
-		resp.Diagnostics.AddError(
-			"Network Resource Not Supported By This GestioIP API Variant",
-			"The configured GestioIP endpoint resolved to intapi.cgi, which in the tested container image supports network reads via listNetworks but does not expose create/update/delete network operations through the API.",
-		)
-		return
-	}
-
 	network, err := r.client.CreateNetwork(ctx, client.CreateNetworkInput{
 		ClientName:  clientName,
 		IP:          plan.IP.ValueString(),
@@ -185,6 +178,12 @@ func (r *networkResource) Read(ctx context.Context, req resource.ReadRequest, re
 
 	network, err := r.client.ReadNetwork(ctx, state.ClientName.ValueString(), state.IP.ValueString(), state.Bitmask.ValueInt64())
 	if err != nil {
+		var apiErr *client.APIError
+		if errors.As(err, &apiErr) && strings.Contains(apiErr.Message, "not found") {
+			resp.State.RemoveResource(ctx)
+			return
+		}
+
 		resp.Diagnostics.AddError("Unable to Read GestioIP Network", err.Error())
 		return
 	}
@@ -200,8 +199,10 @@ func (r *networkResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	var plan networkResourceModel
+	var state networkResourceModel
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -216,20 +217,8 @@ func (r *networkResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	supportsCRUD, err := r.client.SupportsNetworkCRUD(ctx, clientName)
-	if err != nil {
-		resp.Diagnostics.AddError("Unable to Determine GestioIP Network API Capabilities", err.Error())
-		return
-	}
-	if !supportsCRUD {
-		resp.Diagnostics.AddError(
-			"Network Resource Not Supported By This GestioIP API Variant",
-			"The configured GestioIP endpoint resolved to intapi.cgi, which in the tested container image supports network reads via listNetworks but does not expose create/update/delete network operations through the API.",
-		)
-		return
-	}
-
 	network, err := r.client.UpdateNetwork(ctx, client.UpdateNetworkInput{
+		ID:          state.ID.ValueString(),
 		ClientName:  clientName,
 		IP:          plan.IP.ValueString(),
 		Bitmask:     plan.Bitmask.ValueInt64(),
@@ -238,6 +227,7 @@ func (r *networkResource) Update(ctx context.Context, req resource.UpdateRequest
 		Category:    plan.Category.ValueString(),
 		Comment:     plan.Comment.ValueString(),
 		Sync:        plan.Sync.ValueBool(),
+		IPVersion:   state.IPVersion.ValueString(),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to Update GestioIP Network", err.Error())
@@ -261,23 +251,12 @@ func (r *networkResource) Delete(ctx context.Context, req resource.DeleteRequest
 		return
 	}
 
-	supportsCRUD, err := r.client.SupportsNetworkCRUD(ctx, state.ClientName.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError("Unable to Determine GestioIP Network API Capabilities", err.Error())
-		return
-	}
-	if !supportsCRUD {
-		resp.Diagnostics.AddError(
-			"Network Resource Not Supported By This GestioIP API Variant",
-			"The configured GestioIP endpoint resolved to intapi.cgi, which in the tested container image supports network reads via listNetworks but does not expose create/update/delete network operations through the API.",
-		)
-		return
-	}
-
-	err = r.client.DeleteNetwork(ctx, client.DeleteNetworkInput{
+	err := r.client.DeleteNetwork(ctx, client.DeleteNetworkInput{
+		ID:         state.ID.ValueString(),
 		ClientName: state.ClientName.ValueString(),
 		IP:         state.IP.ValueString(),
 		Bitmask:    state.Bitmask.ValueInt64(),
+		IPVersion:  state.IPVersion.ValueString(),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to Delete GestioIP Network", err.Error())

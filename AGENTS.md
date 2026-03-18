@@ -37,6 +37,12 @@ Observación importante ya verificada contra una instancia local limpia de la im
 - `intapi.cgi` requirió sesión por cookie y no funcionó con Basic Auth puro
 - la superficie observada en `intapi.cgi` fue más reducida; para redes se confirmó `listNetworks`
 - la imagen sí incluye CGI de frontend para escritura de redes como `res/ip_insertred.cgi`, `res/ip_modred.cgi` y `res/ip_deletered.cgi`, pero siguen un flujo de formularios web y no un contrato API estable equivalente a `intapi.cgi`
+- para la entidad `network`, sí se validó un flujo híbrido funcional:
+  - lectura vía `intapi.cgi` usando `listNetworks`
+  - escritura vía CGI de frontend con sesión
+  - resolución previa de `client_name` a `client_id`
+- en la imagen probada, `listNetworks` en JSON respondió de forma más fiable con `client_id` que con el nombre literal del cliente
+- para crear o modificar redes, `site` y `category` deben corresponder a valores existentes en GestioIP; no asumir que cualquier cadena libre será aceptada o persistida
 
 Esto significa que el provider debe tolerar al menos dos variantes de despliegue:
 
@@ -45,6 +51,7 @@ Esto significa que el provider debe tolerar al menos dos variantes de despliegue
 
 Cuando se implemente o ajuste una entidad, priorizar siempre la comprobación contra una instancia real además del PDF.
 Si en algún caso se decide soportar escritura vía CGI de frontend, tratarlo como una integración distinta y documentar muy bien sus límites y supuestos.
+Para `network`, esa integración híbrida ya forma parte del comportamiento esperado del repositorio.
 
 ## Principios de diseño
 
@@ -176,6 +183,11 @@ Cuando la base esté madura:
 
 - tests de aceptación opcionales contra una instancia real o de laboratorio de GestioIP
 - los acceptance tests deben quedar detrás de variables de entorno y no ejecutarse por defecto
+
+Estado actual ya útil:
+
+- existe un test de integración opcional para el ciclo create/read/update/delete de `network`
+- ese test debe ejecutarse con variables como `GESTIOIP_BASE_URL`, `GESTIOIP_USERNAME`, `GESTIOIP_PASSWORD` y `GESTIOIP_CLIENT_NAME`
 
 No asumir que una respuesta HTTP 200 implica éxito de negocio; esto debe tener cobertura de tests.
 No asumir tampoco que todas las instalaciones de GestioIP exponen exactamente el mismo endpoint o el mismo conjunto de `request_type`.
