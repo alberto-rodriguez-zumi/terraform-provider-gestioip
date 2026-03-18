@@ -1,0 +1,9 @@
+[project]
+name = "terraform-provider-gestioip"
+language = "go"
+
+[commands]
+fmt = "gofmt -w ."
+test = "go test ./..."
+build = "go build ./..."
+
