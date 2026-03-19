@@ -39,3 +39,19 @@ resource "gestioip_vlan" "example" {
 - `number` forces replacement
 - the provider currently manages VLAN number, name, description and colors
 - VLAN provider linkage is not exposed yet in this first cut
+- by default, apply fails if a VLAN with the same `number` already exists
+- if the provider sets `allow_overwrite = true`, apply updates the existing VLAN and adopts it into Terraform state
+
+## Import
+
+Import format:
+
+```bash
+terraform import gestioip_vlan.example 200
+```
+
+Or, if you prefer to pass the client inline:
+
+```bash
+terraform import gestioip_vlan.example DEFAULT|200
+```

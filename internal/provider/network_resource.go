@@ -2,8 +2,6 @@ package provider
 
 import (
 	"context"
-	"errors"
-	"strings"
 
 	"github.com/alberto-rodriguez-zumi/terraform-provider-gestioip/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -27,7 +25,8 @@ func NewNetworkResource() resource.Resource {
 }
 
 type networkResource struct {
-	client *client.Client
+	client         *client.Client
+	allowOverwrite bool
 }
 
 type networkResourceModel struct {
@@ -119,6 +118,7 @@ func (r *networkResource) Configure(_ context.Context, req resource.ConfigureReq
 	}
 
 	r.client = providerData.client
+	r.allowOverwrite = providerData.allowOverwrite
 }
 
 func (r *networkResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -141,6 +141,42 @@ func (r *networkResource) Create(ctx context.Context, req resource.CreateRequest
 			"Missing GestioIP Client Name",
 			"The network resource requires client_name either in the resource or in the provider configuration.",
 		)
+		return
+	}
+
+	existingNetwork, err := r.client.ReadNetwork(ctx, clientName, plan.IP.ValueString(), plan.Bitmask.ValueInt64())
+	if err == nil {
+		if !r.allowOverwrite {
+			resp.Diagnostics.AddError(
+				"GestioIP Network Already Exists",
+				"A network with the same ip and bitmask already exists in GestioIP. Import it into Terraform state or set allow_overwrite = true in the provider configuration.",
+			)
+			return
+		}
+
+		updatedNetwork, err := r.client.UpdateNetwork(ctx, client.UpdateNetworkInput{
+			ID:          existingNetwork.ID,
+			ClientName:  clientName,
+			IP:          plan.IP.ValueString(),
+			Bitmask:     plan.Bitmask.ValueInt64(),
+			Description: plan.Description.ValueString(),
+			Site:        plan.Site.ValueString(),
+			Category:    plan.Category.ValueString(),
+			Comment:     plan.Comment.ValueString(),
+			Sync:        plan.Sync.ValueBool(),
+			IPVersion:   existingNetwork.IPVersion,
+		})
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to Overwrite GestioIP Network", err.Error())
+			return
+		}
+
+		state := networkModelFromAPI(*updatedNetwork)
+		resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+		return
+	}
+	if !client.IsNotFoundError(err) {
+		resp.Diagnostics.AddError("Unable to Check GestioIP Network Existence", err.Error())
 		return
 	}
 
@@ -178,8 +214,7 @@ func (r *networkResource) Read(ctx context.Context, req resource.ReadRequest, re
 
 	network, err := r.client.ReadNetwork(ctx, state.ClientName.ValueString(), state.IP.ValueString(), state.Bitmask.ValueInt64())
 	if err != nil {
-		var apiErr *client.APIError
-		if errors.As(err, &apiErr) && strings.Contains(apiErr.Message, "not found") {
+		if client.IsNotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -264,10 +299,37 @@ func (r *networkResource) Delete(ctx context.Context, req resource.DeleteRequest
 }
 
 func (r *networkResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resp.Diagnostics.AddError(
-		"Import Not Yet Implemented",
-		"The gestioip_network resource does not support import yet. A stable import identifier format will be added in a later step.",
-	)
+	if r.client == nil {
+		resp.Diagnostics.AddError("Unconfigured GestioIP Client", "The provider client was not configured for the network resource.")
+		return
+	}
+
+	importClientName, ip, bitmask, err := parseNetworkImportID(req.ID)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid GestioIP Network Import ID", err.Error())
+		return
+	}
+
+	clientName := importClientName
+	if clientName == "" {
+		clientName = r.client.ClientName()
+	}
+	if clientName == "" {
+		resp.Diagnostics.AddError(
+			"Missing GestioIP Client Name",
+			"The network import requires client_name in the provider configuration or in the import ID using the format [client_name|]<ip>/<bitmask>.",
+		)
+		return
+	}
+
+	network, err := r.client.ReadNetwork(ctx, clientName, ip, bitmask)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to Import GestioIP Network", err.Error())
+		return
+	}
+
+	state := networkModelFromAPI(*network)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (r *networkResource) resolveClientName(resourceClientName types.String) (string, bool) {

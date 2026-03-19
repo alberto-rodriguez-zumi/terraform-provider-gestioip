@@ -44,6 +44,48 @@ func TestProviderSchemaIncludesClientName(t *testing.T) {
 	}
 }
 
+func TestProviderSchemaIncludesAllowOverwrite(t *testing.T) {
+	t.Parallel()
+
+	resp := &provider.SchemaResponse{}
+
+	New().Schema(context.Background(), provider.SchemaRequest{}, resp)
+
+	attr, ok := resp.Schema.Attributes["allow_overwrite"]
+	if !ok {
+		t.Fatal("expected allow_overwrite attribute to be present in provider schema")
+	}
+
+	boolAttr, ok := attr.(schema.BoolAttribute)
+	if !ok {
+		t.Fatalf("expected allow_overwrite attribute to be a bool attribute, got %T", attr)
+	}
+
+	if !boolAttr.Optional {
+		t.Fatal("expected allow_overwrite attribute to be optional")
+	}
+}
+
+func TestAllowOverwriteValueDefaultsToFalse(t *testing.T) {
+	t.Parallel()
+
+	if allowOverwriteValue(types.BoolNull()) {
+		t.Fatal("expected null allow_overwrite value to default to false")
+	}
+}
+
+func TestAllowOverwriteValueReturnsConfiguredValue(t *testing.T) {
+	t.Parallel()
+
+	if !allowOverwriteValue(types.BoolValue(true)) {
+		t.Fatal("expected true allow_overwrite value to remain true")
+	}
+
+	if allowOverwriteValue(types.BoolValue(false)) {
+		t.Fatal("expected false allow_overwrite value to remain false")
+	}
+}
+
 func TestNetworkResourceResolveClientName(t *testing.T) {
 	t.Parallel()
 
@@ -127,6 +169,99 @@ func TestFindNetwork(t *testing.T) {
 
 	if network.IP != "10.0.0.0" || network.Bitmask != 8 {
 		t.Fatalf("unexpected network returned: %+v", network)
+	}
+}
+
+func TestParseHostImportID(t *testing.T) {
+	t.Parallel()
+
+	clientName, ip, err := parseHostImportID("DEFAULT|10.0.0.10")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if clientName != "DEFAULT" {
+		t.Fatalf("expected DEFAULT, got %q", clientName)
+	}
+
+	if ip != "10.0.0.10" {
+		t.Fatalf("expected 10.0.0.10, got %q", ip)
+	}
+}
+
+func TestParseHostImportIDWithoutClientName(t *testing.T) {
+	t.Parallel()
+
+	clientName, ip, err := parseHostImportID("10.0.0.10")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if clientName != "" {
+		t.Fatalf("expected empty client name, got %q", clientName)
+	}
+
+	if ip != "10.0.0.10" {
+		t.Fatalf("expected 10.0.0.10, got %q", ip)
+	}
+}
+
+func TestParseNetworkImportID(t *testing.T) {
+	t.Parallel()
+
+	clientName, ip, bitmask, err := parseNetworkImportID("DEFAULT|10.0.0.0/24")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if clientName != "DEFAULT" {
+		t.Fatalf("expected DEFAULT, got %q", clientName)
+	}
+
+	if ip != "10.0.0.0" {
+		t.Fatalf("expected 10.0.0.0, got %q", ip)
+	}
+
+	if bitmask != 24 {
+		t.Fatalf("expected bitmask 24, got %d", bitmask)
+	}
+}
+
+func TestParseNetworkImportIDSupportsIPv6(t *testing.T) {
+	t.Parallel()
+
+	clientName, ip, bitmask, err := parseNetworkImportID("DEFAULT|2001:db8::/64")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if clientName != "DEFAULT" {
+		t.Fatalf("expected DEFAULT, got %q", clientName)
+	}
+
+	if ip != "2001:db8::" {
+		t.Fatalf("expected 2001:db8::, got %q", ip)
+	}
+
+	if bitmask != 64 {
+		t.Fatalf("expected bitmask 64, got %d", bitmask)
+	}
+}
+
+func TestParseVLANImportID(t *testing.T) {
+	t.Parallel()
+
+	clientName, number, err := parseVLANImportID("DEFAULT|260")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if clientName != "DEFAULT" {
+		t.Fatalf("expected DEFAULT, got %q", clientName)
+	}
+
+	if number != "260" {
+		t.Fatalf("expected 260, got %q", number)
 	}
 }
 
