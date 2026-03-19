@@ -2,8 +2,6 @@ package provider
 
 import (
 	"context"
-	"errors"
-	"strings"
 
 	"github.com/alberto-rodriguez-zumi/terraform-provider-gestioip/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -15,8 +13,9 @@ import (
 )
 
 var (
-	_ resource.Resource              = &hostResource{}
-	_ resource.ResourceWithConfigure = &hostResource{}
+	_ resource.Resource                = &hostResource{}
+	_ resource.ResourceWithConfigure   = &hostResource{}
+	_ resource.ResourceWithImportState = &hostResource{}
 )
 
 func NewHostResource() resource.Resource {
@@ -143,6 +142,19 @@ func (r *hostResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
+	_, err := r.client.ReadHost(ctx, clientName, plan.IP.ValueString())
+	if err == nil {
+		resp.Diagnostics.AddError(
+			"GestioIP Host Already Exists",
+			"A host with the same ip already exists in GestioIP. Import it into Terraform state or wait for allow_overwrite support in the provider.",
+		)
+		return
+	}
+	if !client.IsNotFoundError(err) {
+		resp.Diagnostics.AddError("Unable to Check GestioIP Host Existence", err.Error())
+		return
+	}
+
 	host, err := r.client.CreateHost(ctx, client.CreateHostInput{
 		ClientName:  clientName,
 		IP:          plan.IP.ValueString(),
@@ -176,8 +188,7 @@ func (r *hostResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 
 	host, err := r.client.ReadHost(ctx, state.ClientName.ValueString(), state.IP.ValueString())
 	if err != nil {
-		var apiErr *client.APIError
-		if errors.As(err, &apiErr) && strings.Contains(apiErr.Message, "not found") {
+		if client.IsNotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -260,6 +271,40 @@ func (r *hostResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to Delete GestioIP Host", err.Error())
 	}
+}
+
+func (r *hostResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	if r.client == nil {
+		resp.Diagnostics.AddError("Unconfigured GestioIP Client", "The provider client was not configured for the host resource.")
+		return
+	}
+
+	importClientName, ip, err := parseHostImportID(req.ID)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid GestioIP Host Import ID", err.Error())
+		return
+	}
+
+	clientName := importClientName
+	if clientName == "" {
+		clientName = r.client.ClientName()
+	}
+	if clientName == "" {
+		resp.Diagnostics.AddError(
+			"Missing GestioIP Client Name",
+			"The host import requires client_name in the provider configuration or in the import ID using the format [client_name|]<ip>.",
+		)
+		return
+	}
+
+	host, err := r.client.ReadHost(ctx, clientName, ip)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to Import GestioIP Host", err.Error())
+		return
+	}
+
+	state := hostModelFromAPI(*host)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (r *hostResource) resolveClientName(resourceClientName types.String) (string, bool) {

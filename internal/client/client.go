@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -43,6 +44,15 @@ type APIError struct {
 
 func (e *APIError) Error() string {
 	return e.Message
+}
+
+func IsNotFoundError(err error) bool {
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+
+	return strings.Contains(strings.ToLower(apiErr.Message), "not found")
 }
 
 func New(config Config) (*Client, error) {

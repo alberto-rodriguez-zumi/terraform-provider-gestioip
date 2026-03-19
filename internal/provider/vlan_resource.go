@@ -2,8 +2,6 @@ package provider
 
 import (
 	"context"
-	"errors"
-	"strings"
 
 	"github.com/alberto-rodriguez-zumi/terraform-provider-gestioip/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -16,8 +14,9 @@ import (
 )
 
 var (
-	_ resource.Resource              = &vlanResource{}
-	_ resource.ResourceWithConfigure = &vlanResource{}
+	_ resource.Resource                = &vlanResource{}
+	_ resource.ResourceWithConfigure   = &vlanResource{}
+	_ resource.ResourceWithImportState = &vlanResource{}
 )
 
 func NewVLANResource() resource.Resource {
@@ -121,6 +120,19 @@ func (r *vlanResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
+	_, err := r.client.ReadVLAN(ctx, clientName, plan.Number.ValueString())
+	if err == nil {
+		resp.Diagnostics.AddError(
+			"GestioIP VLAN Already Exists",
+			"A VLAN with the same number already exists in GestioIP. Import it into Terraform state or wait for allow_overwrite support in the provider.",
+		)
+		return
+	}
+	if !client.IsNotFoundError(err) {
+		resp.Diagnostics.AddError("Unable to Check GestioIP VLAN Existence", err.Error())
+		return
+	}
+
 	vlan, err := r.client.CreateVLAN(ctx, client.CreateVLANInput{
 		ClientName:  clientName,
 		Number:      plan.Number.ValueString(),
@@ -152,8 +164,7 @@ func (r *vlanResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 
 	vlan, err := r.client.ReadVLAN(ctx, state.ClientName.ValueString(), state.Number.ValueString())
 	if err != nil {
-		var apiErr *client.APIError
-		if errors.As(err, &apiErr) && strings.Contains(apiErr.Message, "not found") {
+		if client.IsNotFoundError(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -226,6 +237,40 @@ func (r *vlanResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to Delete GestioIP VLAN", err.Error())
 	}
+}
+
+func (r *vlanResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	if r.client == nil {
+		resp.Diagnostics.AddError("Unconfigured GestioIP Client", "The provider client was not configured for the VLAN resource.")
+		return
+	}
+
+	importClientName, number, err := parseVLANImportID(req.ID)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid GestioIP VLAN Import ID", err.Error())
+		return
+	}
+
+	clientName := importClientName
+	if clientName == "" {
+		clientName = r.client.ClientName()
+	}
+	if clientName == "" {
+		resp.Diagnostics.AddError(
+			"Missing GestioIP Client Name",
+			"The VLAN import requires client_name in the provider configuration or in the import ID using the format [client_name|]<number>.",
+		)
+		return
+	}
+
+	vlan, err := r.client.ReadVLAN(ctx, clientName, number)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to Import GestioIP VLAN", err.Error())
+		return
+	}
+
+	state := vlanModelFromAPI(*vlan)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (r *vlanResource) resolveClientName(resourceClientName types.String) (string, bool) {
