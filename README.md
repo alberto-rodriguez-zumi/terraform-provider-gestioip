@@ -44,7 +44,13 @@ Operational constraints observed in the tested image:
 - `client_name` must match a GestioIP client visible in the UI
 - `site` and `category` values for networks and hosts must already exist in GestioIP
 - VLAN colors must match values supported by the GestioIP form
-- no resources support `terraform import` yet
+- resources support `terraform import`
+
+Behavior validated against a local GestioIP instance on March 19, 2026:
+
+- by default, creating a `host`, `network` or `vlan` that already exists returns an error during `apply`
+- if `allow_overwrite = true` is set in the provider, the provider updates the existing object and adopts it into Terraform state
+- `terraform import` works for `host`, `network` and `vlan`
 
 ## Installation
 
@@ -107,6 +113,7 @@ provider "gestioip" {
   client_name = "DEFAULT"
   username    = "gipadmin"
   password    = "password"
+  allow_overwrite = false
 }
 ```
 
@@ -116,10 +123,30 @@ Provider attributes:
   GestioIP base URL, for example `http://localhost`
 - `client_name`:
   optional default client for resources and data sources
+- `allow_overwrite`:
+  optional boolean, defaults to `false`; if set to `true`, create operations overwrite an existing object with the same identity and adopt it into Terraform state
 - `username`:
   GestioIP username
 - `password`:
   GestioIP password
+
+## Import
+
+Supported import identifiers:
+
+- `gestioip_network`: `[client_name|]<ip>/<bitmask>`
+- `gestioip_host`: `[client_name|]<ip>`
+- `gestioip_vlan`: `[client_name|]<number>`
+
+If `client_name` is already configured in the provider, the import ID can omit it.
+
+Examples:
+
+```bash
+terraform import gestioip_network.example 10.63.0.0/24
+terraform import gestioip_host.example 10.63.0.10
+terraform import gestioip_vlan.example 263
+```
 
 ## Full example
 

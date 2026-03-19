@@ -46,4 +46,19 @@ resource "gestioip_network" "example" {
 
 - `ip` and `bitmask` force replacement
 - `site` and `category` must already exist in GestioIP
-- import is not implemented yet
+- by default, apply fails if a network with the same `ip` and `bitmask` already exists
+- if the provider sets `allow_overwrite = true`, apply updates the existing network and adopts it into Terraform state
+
+## Import
+
+Import format:
+
+```bash
+terraform import gestioip_network.example 192.168.50.0/24
+```
+
+Or, if you prefer to pass the client inline:
+
+```bash
+terraform import gestioip_network.example DEFAULT|192.168.50.0/24
+```

@@ -59,3 +59,19 @@ resource "gestioip_host" "example" {
 - `ip` forces replacement
 - the target network must already exist
 - `site` and `category` values must exist in GestioIP
+- by default, apply fails if a host with the same `ip` already exists
+- if the provider sets `allow_overwrite = true`, apply updates the existing host and adopts it into Terraform state
+
+## Import
+
+Import format:
+
+```bash
+terraform import gestioip_host.example 192.168.50.10
+```
+
+Or, if you prefer to pass the client inline:
+
+```bash
+terraform import gestioip_host.example DEFAULT|192.168.50.10
+```
