@@ -11,6 +11,8 @@ The GestioIP provider manages networks, hosts, and VLANs in GestioIP.
 
 This provider is built with Terraform Plugin Framework and is currently focused on the free GestioIP 3.5 container image, where some operations rely on a hybrid approach between `intapi.cgi` and the frontend CGI flows.
 
+!> This provider has only been tested against GestioIP 3.5. It may also work with other GestioIP versions, but that compatibility is not currently guaranteed. The provider is published in its current state for testing purposes.
+
 ## Example Usage
 
 ```hcl

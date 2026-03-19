@@ -4,6 +4,9 @@ Terraform provider for GestioIP built with Terraform Plugin Framework.
 
 This repository currently targets the free GestioIP 3.5 container image and adapts to the behavior that was validated against `gestioip/gestioip:3570` on March 18, 2026.
 
+> Warning
+> This provider has only been tested against GestioIP 3.5. It may also work with other GestioIP versions, but that compatibility is not currently guaranteed. The provider is published in its current state for testing purposes.
+
 ## Status
 
 Current provider coverage:
