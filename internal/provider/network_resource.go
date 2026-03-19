@@ -25,7 +25,8 @@ func NewNetworkResource() resource.Resource {
 }
 
 type networkResource struct {
-	client *client.Client
+	client         *client.Client
+	allowOverwrite bool
 }
 
 type networkResourceModel struct {
@@ -117,6 +118,7 @@ func (r *networkResource) Configure(_ context.Context, req resource.ConfigureReq
 	}
 
 	r.client = providerData.client
+	r.allowOverwrite = providerData.allowOverwrite
 }
 
 func (r *networkResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -142,12 +144,35 @@ func (r *networkResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	_, err := r.client.ReadNetwork(ctx, clientName, plan.IP.ValueString(), plan.Bitmask.ValueInt64())
+	existingNetwork, err := r.client.ReadNetwork(ctx, clientName, plan.IP.ValueString(), plan.Bitmask.ValueInt64())
 	if err == nil {
-		resp.Diagnostics.AddError(
-			"GestioIP Network Already Exists",
-			"A network with the same ip and bitmask already exists in GestioIP. Import it into Terraform state or wait for allow_overwrite support in the provider.",
-		)
+		if !r.allowOverwrite {
+			resp.Diagnostics.AddError(
+				"GestioIP Network Already Exists",
+				"A network with the same ip and bitmask already exists in GestioIP. Import it into Terraform state or set allow_overwrite = true in the provider configuration.",
+			)
+			return
+		}
+
+		updatedNetwork, err := r.client.UpdateNetwork(ctx, client.UpdateNetworkInput{
+			ID:          existingNetwork.ID,
+			ClientName:  clientName,
+			IP:          plan.IP.ValueString(),
+			Bitmask:     plan.Bitmask.ValueInt64(),
+			Description: plan.Description.ValueString(),
+			Site:        plan.Site.ValueString(),
+			Category:    plan.Category.ValueString(),
+			Comment:     plan.Comment.ValueString(),
+			Sync:        plan.Sync.ValueBool(),
+			IPVersion:   existingNetwork.IPVersion,
+		})
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to Overwrite GestioIP Network", err.Error())
+			return
+		}
+
+		state := networkModelFromAPI(*updatedNetwork)
+		resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 		return
 	}
 	if !client.IsNotFoundError(err) {

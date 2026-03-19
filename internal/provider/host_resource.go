@@ -23,7 +23,8 @@ func NewHostResource() resource.Resource {
 }
 
 type hostResource struct {
-	client *client.Client
+	client         *client.Client
+	allowOverwrite bool
 }
 
 type hostResourceModel struct {
@@ -117,6 +118,7 @@ func (r *hostResource) Configure(_ context.Context, req resource.ConfigureReques
 	}
 
 	r.client = providerData.client
+	r.allowOverwrite = providerData.allowOverwrite
 }
 
 func (r *hostResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -142,12 +144,36 @@ func (r *hostResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	_, err := r.client.ReadHost(ctx, clientName, plan.IP.ValueString())
+	existingHost, err := r.client.ReadHost(ctx, clientName, plan.IP.ValueString())
 	if err == nil {
-		resp.Diagnostics.AddError(
-			"GestioIP Host Already Exists",
-			"A host with the same ip already exists in GestioIP. Import it into Terraform state or wait for allow_overwrite support in the provider.",
-		)
+		if !r.allowOverwrite {
+			resp.Diagnostics.AddError(
+				"GestioIP Host Already Exists",
+				"A host with the same ip already exists in GestioIP. Import it into Terraform state or set allow_overwrite = true in the provider configuration.",
+			)
+			return
+		}
+
+		updatedHost, err := r.client.UpdateHost(ctx, client.UpdateHostInput{
+			ID:          existingHost.ID,
+			IPInt:       existingHost.IPInt,
+			NetworkID:   existingHost.NetworkID,
+			ClientName:  clientName,
+			IP:          plan.IP.ValueString(),
+			Hostname:    plan.Hostname.ValueString(),
+			Description: plan.Description.ValueString(),
+			Site:        plan.Site.ValueString(),
+			Category:    plan.Category.ValueString(),
+			Comment:     plan.Comment.ValueString(),
+			IPVersion:   existingHost.IPVersion,
+		})
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to Overwrite GestioIP Host", err.Error())
+			return
+		}
+
+		state := hostModelFromAPI(*updatedHost)
+		resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 		return
 	}
 	if !client.IsNotFoundError(err) {

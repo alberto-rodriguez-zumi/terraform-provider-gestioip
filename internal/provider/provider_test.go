@@ -44,6 +44,48 @@ func TestProviderSchemaIncludesClientName(t *testing.T) {
 	}
 }
 
+func TestProviderSchemaIncludesAllowOverwrite(t *testing.T) {
+	t.Parallel()
+
+	resp := &provider.SchemaResponse{}
+
+	New().Schema(context.Background(), provider.SchemaRequest{}, resp)
+
+	attr, ok := resp.Schema.Attributes["allow_overwrite"]
+	if !ok {
+		t.Fatal("expected allow_overwrite attribute to be present in provider schema")
+	}
+
+	boolAttr, ok := attr.(schema.BoolAttribute)
+	if !ok {
+		t.Fatalf("expected allow_overwrite attribute to be a bool attribute, got %T", attr)
+	}
+
+	if !boolAttr.Optional {
+		t.Fatal("expected allow_overwrite attribute to be optional")
+	}
+}
+
+func TestAllowOverwriteValueDefaultsToFalse(t *testing.T) {
+	t.Parallel()
+
+	if allowOverwriteValue(types.BoolNull()) {
+		t.Fatal("expected null allow_overwrite value to default to false")
+	}
+}
+
+func TestAllowOverwriteValueReturnsConfiguredValue(t *testing.T) {
+	t.Parallel()
+
+	if !allowOverwriteValue(types.BoolValue(true)) {
+		t.Fatal("expected true allow_overwrite value to remain true")
+	}
+
+	if allowOverwriteValue(types.BoolValue(false)) {
+		t.Fatal("expected false allow_overwrite value to remain false")
+	}
+}
+
 func TestNetworkResourceResolveClientName(t *testing.T) {
 	t.Parallel()
 

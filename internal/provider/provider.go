@@ -23,14 +23,20 @@ func New() provider.Provider {
 type gestioIPProvider struct{}
 
 type gestioIPProviderModel struct {
-	BaseURL    types.String `tfsdk:"base_url"`
-	ClientName types.String `tfsdk:"client_name"`
-	Username   types.String `tfsdk:"username"`
-	Password   types.String `tfsdk:"password"`
+	BaseURL        types.String `tfsdk:"base_url"`
+	ClientName     types.String `tfsdk:"client_name"`
+	AllowOverwrite types.Bool   `tfsdk:"allow_overwrite"`
+	Username       types.String `tfsdk:"username"`
+	Password       types.String `tfsdk:"password"`
 }
 
 type providerData struct {
-	client *client.Client
+	client         *client.Client
+	allowOverwrite bool
+}
+
+func allowOverwriteValue(value types.Bool) bool {
+	return !value.IsNull() && !value.IsUnknown() && value.ValueBool()
 }
 
 func (p *gestioIPProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -47,6 +53,10 @@ func (p *gestioIPProvider) Schema(_ context.Context, _ provider.SchemaRequest, r
 			},
 			"client_name": schema.StringAttribute{
 				MarkdownDescription: "Default GestioIP client name used by resources and data sources that operate within a client context.",
+				Optional:            true,
+			},
+			"allow_overwrite": schema.BoolAttribute{
+				MarkdownDescription: "Whether resources should overwrite existing GestioIP objects with the same identity during creation. Defaults to false.",
 				Optional:            true,
 			},
 			"username": schema.StringAttribute{
@@ -113,12 +123,14 @@ func (p *gestioIPProvider) Configure(ctx context.Context, req provider.Configure
 	}
 
 	tflog.Info(ctx, "Configured GestioIP client", map[string]any{
-		"base_url":    client.BaseURL(),
-		"client_name": client.ClientName(),
+		"base_url":        client.BaseURL(),
+		"client_name":     client.ClientName(),
+		"allow_overwrite": allowOverwriteValue(data.AllowOverwrite),
 	})
 
 	providerData := &providerData{
-		client: client,
+		client:         client,
+		allowOverwrite: allowOverwriteValue(data.AllowOverwrite),
 	}
 
 	resp.DataSourceData = providerData

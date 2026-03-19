@@ -24,7 +24,8 @@ func NewVLANResource() resource.Resource {
 }
 
 type vlanResource struct {
-	client *client.Client
+	client         *client.Client
+	allowOverwrite bool
 }
 
 type vlanResourceModel struct {
@@ -100,6 +101,7 @@ func (r *vlanResource) Configure(_ context.Context, req resource.ConfigureReques
 	}
 
 	r.client = providerData.client
+	r.allowOverwrite = providerData.allowOverwrite
 }
 
 func (r *vlanResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -120,12 +122,32 @@ func (r *vlanResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	_, err := r.client.ReadVLAN(ctx, clientName, plan.Number.ValueString())
+	existingVLAN, err := r.client.ReadVLAN(ctx, clientName, plan.Number.ValueString())
 	if err == nil {
-		resp.Diagnostics.AddError(
-			"GestioIP VLAN Already Exists",
-			"A VLAN with the same number already exists in GestioIP. Import it into Terraform state or wait for allow_overwrite support in the provider.",
-		)
+		if !r.allowOverwrite {
+			resp.Diagnostics.AddError(
+				"GestioIP VLAN Already Exists",
+				"A VLAN with the same number already exists in GestioIP. Import it into Terraform state or set allow_overwrite = true in the provider configuration.",
+			)
+			return
+		}
+
+		updatedVLAN, err := r.client.UpdateVLAN(ctx, client.UpdateVLANInput{
+			ID:          existingVLAN.ID,
+			ClientName:  clientName,
+			Number:      plan.Number.ValueString(),
+			Name:        plan.Name.ValueString(),
+			Description: plan.Description.ValueString(),
+			BGColor:     plan.BGColor.ValueString(),
+			FontColor:   plan.FontColor.ValueString(),
+		})
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to Overwrite GestioIP VLAN", err.Error())
+			return
+		}
+
+		state := vlanModelFromAPI(*updatedVLAN)
+		resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 		return
 	}
 	if !client.IsNotFoundError(err) {
