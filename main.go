@@ -8,6 +8,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 )
 
+var (
+	version = "dev"
+	commit  = "none"
+)
+
 func main() {
 	err := providerserver.Serve(context.Background(), provider.New, providerserver.ServeOpts{
 		Address: "registry.terraform.io/alberto-rodriguez-zumi/gestioip",

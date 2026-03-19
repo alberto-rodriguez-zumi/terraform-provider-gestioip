@@ -150,6 +150,21 @@ terraform import gestioip_host.example 10.63.0.10
 terraform import gestioip_vlan.example 263
 ```
 
+## Terraform Registry publishing
+
+This repository includes the baseline files needed for Terraform Registry releases:
+
+- [terraform-registry-manifest.json](terraform-registry-manifest.json)
+- [.goreleaser.yml](.goreleaser.yml)
+- [.github/workflows/release.yml](.github/workflows/release.yml)
+
+The release workflow expects these GitHub repository secrets:
+
+- `GPG_PRIVATE_KEY`
+- `PASSPHRASE`
+
+The manifest declares protocol version `6.0`, which matches Terraform Plugin Framework providers.
+
 ## Full example
 
 The repository includes a combined example in [examples/provider/provider.tf](examples/provider/provider.tf).
