@@ -6,11 +6,18 @@ terraform {
   }
 }
 
+variable "gestioip_password" {
+  description = "GestioIP password"
+  type        = string
+  sensitive   = true
+}
+
 provider "gestioip" {
-  base_url    = "https://gestioip.example.com"
-  client_name = "DEFAULT"
-  username    = "admin"
-  password    = "change-me"
+  base_url        = "https://gestioip.example.com"
+  client_name     = "DEFAULT"
+  username        = "gipadmin"
+  password        = var.gestioip_password
+  allow_overwrite = false
 }
 
 resource "gestioip_network" "example" {

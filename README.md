@@ -58,40 +58,40 @@ This provider is not documented here as a Terraform Registry provider yet. The c
 
 Release page:
 
-- [v0.1](https://github.com/alberto-rodriguez-zumi/terraform-provider-gestioip/releases/tag/v0.1)
+- [v0.2](https://github.com/alberto-rodriguez-zumi/terraform-provider-gestioip/releases/tag/v0.2)
 
 ### macOS arm64
 
-1. Download `terraform-provider-gestioip_v0.1_darwin_arm64.zip`.
+1. Download `terraform-provider-gestioip_v0.2_darwin_arm64.zip`.
 2. Create the local plugin directory:
 
 ```bash
-mkdir -p ~/.terraform.d/plugins/alberto-rodriguez-zumi/gestioip/0.1/darwin_arm64
+mkdir -p ~/.terraform.d/plugins/alberto-rodriguez-zumi/gestioip/0.2/darwin_arm64
 ```
 
 3. Unzip the asset into that directory.
 4. Rename the binary to the Terraform local plugin naming convention:
 
 ```bash
-mv ~/.terraform.d/plugins/alberto-rodriguez-zumi/gestioip/0.1/darwin_arm64/terraform-provider-gestioip_v0.1_darwin_arm64 \
-  ~/.terraform.d/plugins/alberto-rodriguez-zumi/gestioip/0.1/darwin_arm64/terraform-provider-gestioip_v0.1
+mv ~/.terraform.d/plugins/alberto-rodriguez-zumi/gestioip/0.2/darwin_arm64/terraform-provider-gestioip_v0.2_darwin_arm64 \
+  ~/.terraform.d/plugins/alberto-rodriguez-zumi/gestioip/0.2/darwin_arm64/terraform-provider-gestioip_v0.2
 ```
 
 ### macOS x86_64
 
-1. Download `terraform-provider-gestioip_v0.1_darwin_amd64.zip`.
+1. Download `terraform-provider-gestioip_v0.2_darwin_amd64.zip`.
 2. Create the local plugin directory:
 
 ```bash
-mkdir -p ~/.terraform.d/plugins/alberto-rodriguez-zumi/gestioip/0.1/darwin_amd64
+mkdir -p ~/.terraform.d/plugins/alberto-rodriguez-zumi/gestioip/0.2/darwin_amd64
 ```
 
 3. Unzip the asset into that directory.
 4. Rename the binary:
 
 ```bash
-mv ~/.terraform.d/plugins/alberto-rodriguez-zumi/gestioip/0.1/darwin_amd64/terraform-provider-gestioip_v0.1_darwin_amd64 \
-  ~/.terraform.d/plugins/alberto-rodriguez-zumi/gestioip/0.1/darwin_amd64/terraform-provider-gestioip_v0.1
+mv ~/.terraform.d/plugins/alberto-rodriguez-zumi/gestioip/0.2/darwin_amd64/terraform-provider-gestioip_v0.2_darwin_amd64 \
+  ~/.terraform.d/plugins/alberto-rodriguez-zumi/gestioip/0.2/darwin_amd64/terraform-provider-gestioip_v0.2
 ```
 
 ## Provider configuration
@@ -109,13 +109,15 @@ terraform {
 }
 
 provider "gestioip" {
-  base_url    = "http://localhost"
-  client_name = "DEFAULT"
-  username    = "gipadmin"
-  password    = "password"
+  base_url        = "http://localhost"
+  client_name     = "DEFAULT"
+  username        = "gipadmin"
+  password        = var.gestioip_password
   allow_overwrite = false
 }
 ```
+
+`gipadmin` is the default administrative username in GestioIP, so it is used here as an example. Use your own password or pass it through a variable or environment-backed workflow.
 
 Provider attributes:
 
@@ -177,7 +179,7 @@ Integration tests are env-gated and do not run by default. Examples:
 ```bash
 GESTIOIP_BASE_URL=http://localhost \
 GESTIOIP_USERNAME=gipadmin \
-GESTIOIP_PASSWORD=password \
+GESTIOIP_PASSWORD=your-password \
 GESTIOIP_CLIENT_NAME=DEFAULT \
 GOCACHE=$(pwd)/.cache/go-build \
 GOMODCACHE=$(pwd)/.cache/gomod \
@@ -187,7 +189,7 @@ go test ./internal/client -run TestClientNetworkLifecycleIntegration -count=1 -v
 ```bash
 GESTIOIP_BASE_URL=http://localhost \
 GESTIOIP_USERNAME=gipadmin \
-GESTIOIP_PASSWORD=password \
+GESTIOIP_PASSWORD=your-password \
 GESTIOIP_CLIENT_NAME=DEFAULT \
 GOCACHE=$(pwd)/.cache/go-build \
 GOMODCACHE=$(pwd)/.cache/gomod \
@@ -197,7 +199,7 @@ go test ./internal/client -run TestClientHostLifecycleIntegration -count=1 -v
 ```bash
 GESTIOIP_BASE_URL=http://localhost \
 GESTIOIP_USERNAME=gipadmin \
-GESTIOIP_PASSWORD=password \
+GESTIOIP_PASSWORD=your-password \
 GESTIOIP_CLIENT_NAME=DEFAULT \
 GOCACHE=$(pwd)/.cache/go-build \
 GOMODCACHE=$(pwd)/.cache/gomod \
