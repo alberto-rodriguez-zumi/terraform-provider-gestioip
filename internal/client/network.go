@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -93,6 +94,8 @@ type networkPayload struct {
 	IPVersion   string `json:"ip_version"`
 }
 
+var networkRowPattern = regexp.MustCompile(`(?s)<tr[^>]*class="show_detail"[^>]*>.*?</tr>`)
+
 func (c *Client) ReadNetwork(ctx context.Context, clientName, ip string, bitmask int64) (*Network, error) {
 	if supports, err := c.SupportsNetworkCRUD(ctx, clientName); err == nil && !supports {
 		networks, err := c.ListNetworks(ctx, clientName)
@@ -142,11 +145,21 @@ func (c *Client) ListNetworks(ctx context.Context, clientName string) ([]Network
 
 	var response listNetworksResponse
 	if err := c.doFormRequest(ctx, values, &response); err != nil {
+		networks, frontendErr := c.listNetworksViaFrontend(ctx, clientName)
+		if frontendErr == nil {
+			return networks, nil
+		}
+
 		return nil, err
 	}
 
 	networks, err := decodeNetworkList(response.ListNetworksResult.NetworkList, clientName)
 	if err != nil {
+		frontendNetworks, frontendErr := c.listNetworksViaFrontend(ctx, clientName)
+		if frontendErr == nil {
+			return frontendNetworks, nil
+		}
+
 		return nil, err
 	}
 
@@ -163,6 +176,58 @@ func (c *Client) ListNetworks(ctx context.Context, clientName string) ([]Network
 	}
 
 	return networks, nil
+}
+
+func (c *Client) listNetworksViaFrontend(ctx context.Context, clientName string) ([]Network, error) {
+	clientID, err := c.ResolveClientID(ctx, clientName)
+	if err != nil {
+		return nil, err
+	}
+
+	ipVersions := []string{"v4", "v6"}
+	networks := make([]Network, 0)
+	seen := map[string]struct{}{}
+
+	for _, ipVersion := range ipVersions {
+		body, err := c.fetchNetworkPage(ctx, clientID, ipVersion)
+		if err != nil {
+			if ipVersion == "v6" {
+				continue
+			}
+			return nil, err
+		}
+
+		parsed, err := parseNetworksFromFrontend(body, clientName)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, network := range parsed {
+			key := firstNonEmpty(network.ID, network.IP+"/"+strconv.FormatInt(network.Bitmask, 10))
+			if _, ok := seen[key]; ok {
+				continue
+			}
+
+			seen[key] = struct{}{}
+			networks = append(networks, network)
+		}
+	}
+
+	return networks, nil
+}
+
+func (c *Client) fetchNetworkPage(ctx context.Context, clientID, ipVersion string) ([]byte, error) {
+	values := url.Values{}
+	values.Set("client_id", clientID)
+	values.Set("knownhosts", "all")
+	values.Set("entries_per_page", "5000")
+	values.Set("start_entry", "0")
+	values.Set("order_by", "red_ab")
+	values.Set("tipo_ele", "NULL")
+	values.Set("loc_ele", "NULL")
+	values.Set("ip_version_ele", firstNonEmpty(ipVersion, "v4"))
+
+	return c.postFrontendForm(ctx, "/gestioip/index.cgi", values)
 }
 
 func (c *Client) SupportsNetworkCRUD(ctx context.Context, clientName string) (bool, error) {
@@ -426,6 +491,47 @@ func decodeNetworkList(raw json.RawMessage, clientName string) ([]Network, error
 		}
 
 		networks = append(networks, *network)
+	}
+
+	return networks, nil
+}
+
+func parseNetworksFromFrontend(body []byte, clientName string) ([]Network, error) {
+	rows := networkRowPattern.FindAllString(string(body), -1)
+	networks := make([]Network, 0, len(rows))
+
+	for _, row := range rows {
+		if !strings.Contains(row, `name="red_num"`) {
+			continue
+		}
+
+		cells := hostCellPattern.FindAllStringSubmatch(row, -1)
+		if len(cells) < 7 {
+			continue
+		}
+
+		ip := cleanCellText(cells[0][1])
+		if ip == "" {
+			continue
+		}
+
+		bitmask, err := strconv.ParseInt(cleanCellText(cells[1][1]), 10, 64)
+		if err != nil {
+			continue
+		}
+
+		networks = append(networks, Network{
+			ID:          extractHiddenValue(row, "red_num"),
+			IP:          ip,
+			Bitmask:     bitmask,
+			Description: cleanCellText(cells[2][1]),
+			Site:        cleanCellText(cells[3][1]),
+			Category:    cleanCellText(cells[4][1]),
+			Comment:     cleanCellText(cells[5][1]),
+			Sync:        cleanCellText(cells[6][1]) != "",
+			IPVersion:   firstNonEmpty(extractHiddenValue(row, "ip_version"), inferIPVersion(ip)),
+			ClientName:  clientName,
+		})
 	}
 
 	return networks, nil

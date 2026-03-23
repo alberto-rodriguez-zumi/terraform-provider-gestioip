@@ -10,6 +10,7 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -22,6 +23,7 @@ type Config struct {
 }
 
 type Client struct {
+	mu                   sync.RWMutex
 	baseURL              string
 	rootURL              string
 	apiURL               string
@@ -32,7 +34,16 @@ type Client struct {
 	password             string
 	httpClient           *http.Client
 	internalSessionReady bool
+	internalSessionMode  internalSessionMode
 }
+
+type internalSessionMode int
+
+const (
+	internalSessionUnknown internalSessionMode = iota
+	internalSessionEstablished
+	internalSessionBypassed
+)
 
 type apiErrorResponse struct {
 	Error string `json:"error"`
@@ -94,8 +105,12 @@ func (c *Client) BaseURL() string {
 }
 
 func (c *Client) APIURL() string {
-	if c.apiURL != "" {
-		return c.apiURL
+	c.mu.RLock()
+	apiURL := c.apiURL
+	c.mu.RUnlock()
+
+	if apiURL != "" {
+		return apiURL
 	}
 
 	if len(c.apiCandidates) > 0 {
@@ -119,6 +134,8 @@ func (c *Client) Ping(ctx context.Context) error {
 		return fmt.Errorf("create request: %w", err)
 	}
 
+	c.applyBasicAuth(req)
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("perform request: %w", err)
@@ -133,14 +150,22 @@ func (c *Client) Ping(ctx context.Context) error {
 }
 
 func (c *Client) UsesOfficialNetworkAPI(ctx context.Context, clientName string) (bool, error) {
-	if c.apiURL == "" {
+	c.mu.RLock()
+	apiURL := c.apiURL
+	c.mu.RUnlock()
+
+	if apiURL == "" {
 		_, err := c.ListNetworks(ctx, clientName)
 		if err != nil {
 			return false, err
 		}
 	}
 
-	return !isInternalAPIEndpoint(c.apiURL), nil
+	c.mu.RLock()
+	apiURL = c.apiURL
+	c.mu.RUnlock()
+
+	return !isInternalAPIEndpoint(apiURL), nil
 }
 
 func (c *Client) doFormRequest(ctx context.Context, values url.Values, target any) error {
@@ -152,9 +177,13 @@ func (c *Client) doFormRequest(ctx context.Context, values url.Values, target an
 		values.Set("output_type", "json")
 	}
 
+	c.mu.RLock()
+	apiURL := c.apiURL
+	c.mu.RUnlock()
+
 	candidates := c.apiCandidates
-	if c.apiURL != "" {
-		candidates = []string{c.apiURL}
+	if apiURL != "" {
+		candidates = []string{apiURL}
 	}
 
 	var lastErr error
@@ -163,7 +192,7 @@ func (c *Client) doFormRequest(ctx context.Context, values url.Values, target an
 		body, err := c.doFormRequestToEndpoint(ctx, candidate, values)
 		if err != nil {
 			var endpointErr *endpointError
-			if ok := errorAsEndpoint(err, &endpointErr); ok && endpointErr.Recoverable && c.apiURL == "" {
+			if ok := errorAsEndpoint(err, &endpointErr); ok && endpointErr.Recoverable && apiURL == "" {
 				lastErr = err
 				continue
 			}
@@ -171,7 +200,9 @@ func (c *Client) doFormRequest(ctx context.Context, values url.Values, target an
 			return err
 		}
 
+		c.mu.Lock()
 		c.apiURL = candidate
+		c.mu.Unlock()
 		lastErr = nil
 
 		var apiErr apiErrorResponse
@@ -209,9 +240,7 @@ func (c *Client) doFormRequestToEndpoint(ctx context.Context, endpoint string, v
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 
-	if !isInternalAPIEndpoint(endpoint) {
-		req.SetBasicAuth(c.username, c.password)
-	}
+	c.applyBasicAuth(req)
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -255,7 +284,10 @@ func (c *Client) doFormRequestToEndpoint(ctx context.Context, endpoint string, v
 }
 
 func (c *Client) ensureInternalSession(ctx context.Context, endpoint string) error {
-	if c.internalSessionReady {
+	c.mu.RLock()
+	internalSessionReady := c.internalSessionReady
+	c.mu.RUnlock()
+	if internalSessionReady {
 		return nil
 	}
 
@@ -270,6 +302,8 @@ func (c *Client) ensureInternalSession(ctx context.Context, endpoint string) err
 		return fmt.Errorf("create internal API session request: %w", err)
 	}
 
+	c.applyBasicAuth(req)
+
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := c.httpClient.Do(req)
@@ -278,11 +312,22 @@ func (c *Client) ensureInternalSession(ctx context.Context, endpoint string) err
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusNotFound {
+		c.mu.Lock()
+		c.internalSessionReady = true
+		c.internalSessionMode = internalSessionBypassed
+		c.mu.Unlock()
+		return nil
+	}
+
 	if resp.StatusCode >= http.StatusBadRequest {
 		return fmt.Errorf("unexpected status code from %s during login: %d", endpoint, resp.StatusCode)
 	}
 
+	c.mu.Lock()
 	c.internalSessionReady = true
+	c.internalSessionMode = internalSessionEstablished
+	c.mu.Unlock()
 
 	return nil
 }
@@ -319,6 +364,18 @@ func isInternalAPIEndpoint(endpoint string) bool {
 func looksLikeHTMLLogin(body []byte) bool {
 	bodyText := string(body)
 	return strings.Contains(bodyText, "<html") && strings.Contains(bodyText, "Sign In")
+}
+
+func (c *Client) applyBasicAuth(req *http.Request) {
+	if req == nil {
+		return
+	}
+
+	if c.username == "" && c.password == "" {
+		return
+	}
+
+	req.SetBasicAuth(c.username, c.password)
 }
 
 type endpointError struct {

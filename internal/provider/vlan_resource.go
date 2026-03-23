@@ -8,7 +8,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -57,6 +56,9 @@ func (r *vlanResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 				MarkdownDescription: "GestioIP client name. If omitted, the provider-level client_name is used.",
 				Optional:            true,
 				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"number": schema.StringAttribute{
 				MarkdownDescription: "VLAN number.",
@@ -73,18 +75,25 @@ func (r *vlanResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 				MarkdownDescription: "VLAN description.",
 				Optional:            true,
 				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"bg_color": schema.StringAttribute{
 				MarkdownDescription: "VLAN background color used by GestioIP.",
 				Optional:            true,
 				Computed:            true,
-				Default:             stringdefault.StaticString("blue"),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"font_color": schema.StringAttribute{
 				MarkdownDescription: "VLAN font color used by GestioIP.",
 				Optional:            true,
 				Computed:            true,
-				Default:             stringdefault.StaticString("white"),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 	}

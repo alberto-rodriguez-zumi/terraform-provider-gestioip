@@ -25,7 +25,10 @@ func (c *Client) ResolveClientID(ctx context.Context, clientName string) (string
 		return clientName, nil
 	}
 
-	if clientID, ok := c.clientIDs[clientName]; ok {
+	c.mu.RLock()
+	clientID, ok := c.clientIDs[clientName]
+	c.mu.RUnlock()
+	if ok {
 		return clientID, nil
 	}
 
@@ -43,7 +46,9 @@ func (c *Client) ResolveClientID(ctx context.Context, clientName string) (string
 		name := strings.TrimSpace(html.UnescapeString(match[1]))
 		id := strings.TrimSpace(match[2])
 		if name == clientName {
+			c.mu.Lock()
 			c.clientIDs[clientName] = id
+			c.mu.Unlock()
 			return id, nil
 		}
 	}
@@ -60,6 +65,8 @@ func (c *Client) postFrontendForm(ctx context.Context, path string, values url.V
 	if err != nil {
 		return nil, fmt.Errorf("create frontend request: %w", err)
 	}
+
+	c.applyBasicAuth(req)
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
