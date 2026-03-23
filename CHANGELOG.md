@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-03-23
+
 ### Added
 
 - Added compatibility with legacy GestioIP 3.2 deployments that protect both API and frontend flows with Basic Auth.

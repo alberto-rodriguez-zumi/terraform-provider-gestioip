@@ -81,7 +81,7 @@ terraform {
   required_providers {
     gestioip = {
       source  = "alberto-rodriguez-zumi/gestioip"
-      version = "0.2.3"
+      version = "0.3.0"
     }
   }
 }
@@ -96,7 +96,7 @@ terraform {
   required_providers {
     gestioip = {
       source  = "alberto-rodriguez-zumi/gestioip"
-      version = "0.2.3"
+      version = "0.3.0"
     }
   }
 }
