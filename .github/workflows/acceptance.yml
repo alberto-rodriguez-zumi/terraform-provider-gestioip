@@ -1,0 +1,64 @@
+name: Acceptance
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gestioip-32:
+    if: ${{ vars.GESTIOIP32_BASE_URL != '' && vars.GESTIOIP32_CLIENT_NAME != '' && secrets.GESTIOIP32_USERNAME != '' && secrets.GESTIOIP32_PASSWORD != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run GestioIP 3.2 acceptance tests
+        run: make testacc-3.2
+        env:
+          GESTIOIP32_BASE_URL: ${{ vars.GESTIOIP32_BASE_URL }}
+          GESTIOIP32_CLIENT_NAME: ${{ vars.GESTIOIP32_CLIENT_NAME }}
+          GESTIOIP32_NETWORK_SITE: ${{ vars.GESTIOIP32_NETWORK_SITE }}
+          GESTIOIP32_NETWORK_CATEGORY: ${{ vars.GESTIOIP32_NETWORK_CATEGORY }}
+          GESTIOIP32_HOST_SITE: ${{ vars.GESTIOIP32_HOST_SITE }}
+          GESTIOIP32_HOST_CATEGORY: ${{ vars.GESTIOIP32_HOST_CATEGORY }}
+          GESTIOIP32_NETWORK_PREFIX: ${{ vars.GESTIOIP32_NETWORK_PREFIX }}
+          GESTIOIP32_NETWORK_START: ${{ vars.GESTIOIP32_NETWORK_START }}
+          GESTIOIP32_NETWORK_END: ${{ vars.GESTIOIP32_NETWORK_END }}
+          GESTIOIP32_VLAN_START: ${{ vars.GESTIOIP32_VLAN_START }}
+          GESTIOIP32_VLAN_END: ${{ vars.GESTIOIP32_VLAN_END }}
+          GESTIOIP32_USERNAME: ${{ secrets.GESTIOIP32_USERNAME }}
+          GESTIOIP32_PASSWORD: ${{ secrets.GESTIOIP32_PASSWORD }}
+
+  gestioip-35:
+    if: ${{ vars.GESTIOIP35_BASE_URL != '' && vars.GESTIOIP35_CLIENT_NAME != '' && secrets.GESTIOIP35_USERNAME != '' && secrets.GESTIOIP35_PASSWORD != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run GestioIP 3.5 acceptance tests
+        run: make testacc-3.5
+        env:
+          GESTIOIP35_BASE_URL: ${{ vars.GESTIOIP35_BASE_URL }}
+          GESTIOIP35_CLIENT_NAME: ${{ vars.GESTIOIP35_CLIENT_NAME }}
+          GESTIOIP35_NETWORK_SITE: ${{ vars.GESTIOIP35_NETWORK_SITE }}
+          GESTIOIP35_NETWORK_CATEGORY: ${{ vars.GESTIOIP35_NETWORK_CATEGORY }}
+          GESTIOIP35_HOST_SITE: ${{ vars.GESTIOIP35_HOST_SITE }}
+          GESTIOIP35_HOST_CATEGORY: ${{ vars.GESTIOIP35_HOST_CATEGORY }}
+          GESTIOIP35_NETWORK_PREFIX: ${{ vars.GESTIOIP35_NETWORK_PREFIX }}
+          GESTIOIP35_NETWORK_START: ${{ vars.GESTIOIP35_NETWORK_START }}
+          GESTIOIP35_NETWORK_END: ${{ vars.GESTIOIP35_NETWORK_END }}
+          GESTIOIP35_VLAN_START: ${{ vars.GESTIOIP35_VLAN_START }}
+          GESTIOIP35_VLAN_END: ${{ vars.GESTIOIP35_VLAN_END }}
+          GESTIOIP35_USERNAME: ${{ secrets.GESTIOIP35_USERNAME }}
+          GESTIOIP35_PASSWORD: ${{ secrets.GESTIOIP35_PASSWORD }}

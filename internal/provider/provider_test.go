@@ -7,6 +7,8 @@ import (
 	"github.com/alberto-rodriguez-zumi/terraform-provider-gestioip/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	resourceschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -224,6 +226,41 @@ func TestParseNetworkImportID(t *testing.T) {
 
 	if bitmask != 24 {
 		t.Fatalf("expected bitmask 24, got %d", bitmask)
+	}
+}
+
+func TestVLANResourceSchemaDoesNotSetColorDefaults(t *testing.T) {
+	t.Parallel()
+
+	resp := &resource.SchemaResponse{}
+	NewVLANResource().Schema(context.Background(), resource.SchemaRequest{}, resp)
+
+	bgAttr, ok := resp.Schema.Attributes["bg_color"]
+	if !ok {
+		t.Fatal("expected bg_color attribute in vlan schema")
+	}
+
+	bgStringAttr, ok := bgAttr.(resourceschema.StringAttribute)
+	if !ok {
+		t.Fatalf("expected bg_color to be a string attribute, got %T", bgAttr)
+	}
+
+	if bgStringAttr.Default != nil {
+		t.Fatal("expected bg_color to avoid defaults so imports do not normalize existing VLAN colors")
+	}
+
+	fontAttr, ok := resp.Schema.Attributes["font_color"]
+	if !ok {
+		t.Fatal("expected font_color attribute in vlan schema")
+	}
+
+	fontStringAttr, ok := fontAttr.(resourceschema.StringAttribute)
+	if !ok {
+		t.Fatalf("expected font_color to be a string attribute, got %T", fontAttr)
+	}
+
+	if fontStringAttr.Default != nil {
+		t.Fatal("expected font_color to avoid defaults so imports do not normalize existing VLAN colors")
 	}
 }
 

@@ -9,9 +9,12 @@ description: |-
 
 The GestioIP provider manages networks, hosts, and VLANs in GestioIP.
 
-This provider is built with Terraform Plugin Framework and is currently focused on the free GestioIP 3.5 container image, where some operations rely on a hybrid approach between `intapi.cgi` and the frontend CGI flows.
+This provider is built with Terraform Plugin Framework and has been validated against two GestioIP variants:
 
-!> This provider has only been tested against GestioIP 3.5. It may also work with other GestioIP versions, but that compatibility is not currently guaranteed. The provider is published in its current state for testing purposes.
+- GestioIP 3.5 free container image, where some operations rely on a hybrid approach between `intapi.cgi` and the frontend CGI flows
+- GestioIP 3.2 legacy deployments, where both API-related and frontend routes may require Basic Auth
+
+!> This provider has only been tested against GestioIP 3.2 and GestioIP 3.5. It may also work with other GestioIP versions, but that compatibility is not currently guaranteed. The provider is published in its current state for testing purposes.
 
 ## Example Usage
 
@@ -20,7 +23,7 @@ terraform {
   required_providers {
     gestioip = {
       source  = "alberto-rodriguez-zumi/gestioip"
-      version = "0.2.2"
+      version = "0.2.3"
     }
   }
 }
@@ -75,5 +78,7 @@ If `client_name` is already configured in the provider block, the import ID can 
 - In the free GestioIP image tested for this provider, the documented `api/api.cgi` endpoint was not exposed.
 - Network reads are handled through `intapi.cgi` and `listNetworks`.
 - Network, host, and VLAN writes are implemented using the frontend CGI flows exposed by the free image.
+- In the tested GestioIP 3.2 deployment, frontend and API-related routes required Basic Auth and network reads fell back to frontend HTML parsing.
+- In legacy installations, `client_name` must match the client name exposed in the UI and should not be assumed to be `DEFAULT`.
 - `site` and `category` values for networks and hosts must already exist in GestioIP.
 - VLAN colors must match values supported by the GestioIP UI.

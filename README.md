@@ -2,10 +2,13 @@
 
 Terraform provider for GestioIP built with Terraform Plugin Framework.
 
-This repository currently targets the free GestioIP 3.5 container image and adapts to the behavior that was validated against `gestioip/gestioip:3570` on March 18, 2026.
+This repository currently supports two GestioIP variants that have been validated against real instances:
+
+- GestioIP 3.5 free container image (`gestioip/gestioip:3570`)
+- GestioIP 3.2 legacy deployment protected with Basic Auth
 
 > Warning
-> This provider has only been tested against GestioIP 3.5. It may also work with other GestioIP versions, but that compatibility is not currently guaranteed. The provider is published in its current state for testing purposes.
+> This provider has only been tested against GestioIP 3.2 and GestioIP 3.5. It may also work with other GestioIP versions, but that compatibility is not currently guaranteed. The provider is published in its current state for testing purposes.
 
 ## Status
 
@@ -55,46 +58,33 @@ Behavior validated against a local GestioIP instance on March 19, 2026:
 - if `allow_overwrite = true` is set in the provider, the provider updates the existing object and adopts it into Terraform state
 - `terraform import` works for `host`, `network` and `vlan`
 
+Additional behavior validated against a GestioIP 3.2 instance on March 23, 2026:
+
+- the installation required Basic Auth on frontend and API-related routes
+- `client_name` had to match the real client name exposed by the UI rather than assuming `DEFAULT`
+- network reads needed a fallback to parse the frontend HTML when no usable JSON response was available
+- `host`, `network`, and `vlan` all completed create, read, update, delete, and import successfully using temporary resources
+
+The provider should therefore be treated as supporting two integration modes:
+
+- GestioIP 3.5 free image:
+  hybrid reads and writes across `intapi.cgi` and frontend CGI routes
+- GestioIP 3.2 legacy deployments:
+  Basic Auth plus frontend-backed fallbacks where the older installation does not expose the same JSON surface
+
 ## Installation
 
-This provider is not documented here as a Terraform Registry provider yet. The current installation path is from the GitHub release artifacts.
+Install the provider from the Terraform Registry:
 
-Release page:
-
-- [v0.2](https://github.com/alberto-rodriguez-zumi/terraform-provider-gestioip/releases/tag/v0.2)
-
-### macOS arm64
-
-1. Download `terraform-provider-gestioip_v0.2_darwin_arm64.zip`.
-2. Create the local plugin directory:
-
-```bash
-mkdir -p ~/.terraform.d/plugins/alberto-rodriguez-zumi/gestioip/0.2/darwin_arm64
-```
-
-3. Unzip the asset into that directory.
-4. Rename the binary to the Terraform local plugin naming convention:
-
-```bash
-mv ~/.terraform.d/plugins/alberto-rodriguez-zumi/gestioip/0.2/darwin_arm64/terraform-provider-gestioip_v0.2_darwin_arm64 \
-  ~/.terraform.d/plugins/alberto-rodriguez-zumi/gestioip/0.2/darwin_arm64/terraform-provider-gestioip_v0.2
-```
-
-### macOS x86_64
-
-1. Download `terraform-provider-gestioip_v0.2_darwin_amd64.zip`.
-2. Create the local plugin directory:
-
-```bash
-mkdir -p ~/.terraform.d/plugins/alberto-rodriguez-zumi/gestioip/0.2/darwin_amd64
-```
-
-3. Unzip the asset into that directory.
-4. Rename the binary:
-
-```bash
-mv ~/.terraform.d/plugins/alberto-rodriguez-zumi/gestioip/0.2/darwin_amd64/terraform-provider-gestioip_v0.2_darwin_amd64 \
-  ~/.terraform.d/plugins/alberto-rodriguez-zumi/gestioip/0.2/darwin_amd64/terraform-provider-gestioip_v0.2
+```hcl
+terraform {
+  required_providers {
+    gestioip = {
+      source  = "alberto-rodriguez-zumi/gestioip"
+      version = "0.2.3"
+    }
+  }
+}
 ```
 
 ## Provider configuration
@@ -106,7 +96,7 @@ terraform {
   required_providers {
     gestioip = {
       source  = "alberto-rodriguez-zumi/gestioip"
-      version = "0.1"
+      version = "0.2.3"
     }
   }
 }
@@ -192,7 +182,7 @@ Unit and provider tests:
 GOCACHE=$(pwd)/.cache/go-build GOMODCACHE=$(pwd)/.cache/gomod go test ./...
 ```
 
-Integration tests are env-gated and do not run by default. Examples:
+Client integration tests are env-gated and do not run by default. Examples:
 
 ```bash
 GESTIOIP_BASE_URL=http://localhost \
@@ -223,3 +213,64 @@ GOCACHE=$(pwd)/.cache/go-build \
 GOMODCACHE=$(pwd)/.cache/gomod \
 go test ./internal/client -run TestClientVLANLifecycleIntegration -count=1 -v
 ```
+
+Provider acceptance tests are also env-gated and run full resource lifecycle coverage for both supported installation variants.
+
+Available `make` targets:
+
+```bash
+make testacc-3.2
+make testacc-3.5
+make testacc
+```
+
+GestioIP 3.2 acceptance variables:
+
+- `TF_ACC=1`
+- `GESTIOIP32_BASE_URL`
+- `GESTIOIP32_USERNAME`
+- `GESTIOIP32_PASSWORD`
+- `GESTIOIP32_CLIENT_NAME`
+- optional: `GESTIOIP32_NETWORK_SITE`, `GESTIOIP32_NETWORK_CATEGORY`, `GESTIOIP32_HOST_SITE`, `GESTIOIP32_HOST_CATEGORY`, `GESTIOIP32_NETWORK_PREFIX`, `GESTIOIP32_NETWORK_START`, `GESTIOIP32_NETWORK_END`, `GESTIOIP32_VLAN_START`, `GESTIOIP32_VLAN_END`
+
+GestioIP 3.5 acceptance variables:
+
+- `TF_ACC=1`
+- `GESTIOIP35_BASE_URL`
+- `GESTIOIP35_USERNAME`
+- `GESTIOIP35_PASSWORD`
+- `GESTIOIP35_CLIENT_NAME`
+- optional: `GESTIOIP35_NETWORK_SITE`, `GESTIOIP35_NETWORK_CATEGORY`, `GESTIOIP35_HOST_SITE`, `GESTIOIP35_HOST_CATEGORY`, `GESTIOIP35_NETWORK_PREFIX`, `GESTIOIP35_NETWORK_START`, `GESTIOIP35_NETWORK_END`, `GESTIOIP35_VLAN_START`, `GESTIOIP35_VLAN_END`
+
+Examples:
+
+```bash
+TF_ACC=1 \
+GESTIOIP32_BASE_URL=https://gestioip32.example.com \
+GESTIOIP32_USERNAME=gipadmin \
+GESTIOIP32_PASSWORD=your-password \
+GESTIOIP32_CLIENT_NAME="Voxel Group" \
+GESTIOIP32_NETWORK_SITE="ALL-DCs" \
+GESTIOIP32_NETWORK_CATEGORY="DEV_TEST" \
+GESTIOIP32_HOST_SITE="ALL-DCs" \
+GOCACHE=$(pwd)/.cache/go-build \
+GOMODCACHE=$(pwd)/.cache/go-mod \
+go test ./internal/provider -run TestAccGestioIP32Lifecycle -count=1 -v
+```
+
+```bash
+TF_ACC=1 \
+GESTIOIP35_BASE_URL=http://localhost \
+GESTIOIP35_USERNAME=gipadmin \
+GESTIOIP35_PASSWORD=your-password \
+GESTIOIP35_CLIENT_NAME=DEFAULT \
+GESTIOIP35_NETWORK_SITE=Lon \
+GESTIOIP35_NETWORK_CATEGORY=test \
+GESTIOIP35_HOST_SITE=Lon \
+GESTIOIP35_HOST_CATEGORY=server \
+GOCACHE=$(pwd)/.cache/go-build \
+GOMODCACHE=$(pwd)/.cache/go-mod \
+go test ./internal/provider -run TestAccGestioIP35Lifecycle -count=1 -v
+```
+
+A manual GitHub Actions workflow is also available in [.github/workflows/acceptance.yml](.github/workflows/acceptance.yml). It expects lab connection details in repository variables and credentials in repository secrets.
